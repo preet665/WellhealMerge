@@ -1,0 +1,2397 @@
+import DBOperation from './../shared/services/database/database_operation.service.js';
+import SchemaMethods from './../shared/services/database/schema_methods.service.js';
+
+// mongoose schema
+const schema = {
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+    default: ''
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  }
+};
+const modelName = 'Category';
+const CategorySchema = DBOperation.createSchema(modelName, schema);
+let CategoryModel = DBOperation.createModel(modelName, CategorySchema);
+const Category = new SchemaMethods(CategoryModel);
+export default Category;import mongoose from "mongoose";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+
+const schema = {
+    user_ids: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+        trim: true,
+    }],
+    schedule_time: {
+        type: Date,
+        default: null
+    },
+    isSchedule: {
+        type: Boolean,
+        required: true,
+    },
+    isSend: {
+        type: Boolean,
+        required: false,
+    },
+    title: {
+        type: String,
+        required: false,
+        default: "",
+    },
+    description: {
+        type: String,
+        required: false,
+        default: "",
+    },
+    image: {
+        type: String,
+        required: false,
+        default: "",
+    }
+};
+const modelName = "scheduleNotification";
+const NotificationSchema = DBOperation.createSchema(modelName, schema);
+
+NotificationSchema.virtual("user", {
+    ref: 'User',
+    localField: 'user_ids',
+    foreignField: '_id',
+    justOne: true
+});
+
+let NotificationModel = DBOperation.createModel(modelName, NotificationSchema);
+const scheduleNotification = new SchemaMethods(NotificationModel);
+export default scheduleNotification;
+import mongoose from "mongoose";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+import { encrypt, decrypt } from "../shared/utils/utility.js";
+
+// mongoose schema
+const schema = {
+  user_ids: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  }],
+  schedule_time: {
+    type: Date,
+    default: null
+  },
+  title: {
+    type: String,
+    required: false,
+    default: "",
+  },
+  description: {
+    type: String,
+    required: false,
+    default: "",
+  },
+  image: {
+    type: String,
+    required: false,
+    default: "",
+  }
+};
+const modelName = "Notification";
+const NotificationSchema = DBOperation.createSchema(modelName, schema);
+
+NotificationSchema.post(["find", 'update', 'updateMany'], handleURL);
+NotificationSchema.post("aggregate", handleURL);
+NotificationSchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+NotificationSchema.post("save", handleSingleURL);
+NotificationSchema.virtual("user", {
+  ref: 'User',
+  localField: 'user_ids',
+  foreignField: '_id',
+  justOne: true
+})
+
+async function handleURL(values) {
+  values.map(async (item) => item.url = await signURL(item.url));
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.url = await signURL(value.url);
+  return value;
+}
+
+
+
+let NotificationModel = DBOperation.createModel(modelName, NotificationSchema);
+const Notification = new SchemaMethods(NotificationModel);
+export default Notification;
+import DBOperation from './../shared/services/database/database_operation.service.js';
+import SchemaMethods from './../shared/services/database/schema_methods.service.js';
+
+const schema = {
+    month: {
+        type: String,
+        required: true,
+        default: ''
+    },
+    price: {
+        type: String,
+        required: true,
+        default: ''
+    },
+    recommended: {
+        type: Boolean,
+        default: false
+    }
+};
+
+const modelName = 'SubscribePaymentCard';
+const SubscribePaymentCardSchema = DBOperation.createSchema(modelName, schema);
+let SubscribePaymentCardModel = DBOperation.createModel(modelName, SubscribePaymentCardSchema);
+const SubscribePaymentCard = new SchemaMethods(SubscribePaymentCardModel);
+export default SubscribePaymentCard;import mongoose from "mongoose";
+
+// Define the schema for DoctorToken
+const doctorTokenSchema = new mongoose.Schema({
+  doctor_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Doctor",
+    required: true,
+    trim: true,
+  },
+  device_id: {
+    type: String,
+    trim: true, // Make it optional
+    default: null
+  },
+  device_token: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  device_type: {
+    type: String, // "I": IOS, "A": Android
+    trim: true, // Make it optional
+    enum: ["I", "A", null],
+    default: null
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  },
+  is_loggedOut: {
+    type: Boolean,
+    default: false
+  },
+  loggedOut_at: {
+    type: Date,
+    default: null
+  }
+});
+
+// Create a model for the DoctorToken schema
+const DoctorTokenModel = mongoose.model('DoctorToken', doctorTokenSchema);
+
+// Export the model to be used in other parts of the application
+export default DoctorTokenModel;
+import mongoose from "mongoose";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  therapy_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Therapy",
+    required: true,
+    trim: true,
+  },
+  sub_category_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory",
+    required: true,
+    trim: true,
+  },
+  progress_percent: {
+    type: Number,
+    trim: true,
+    default: 0
+  },
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  },
+};
+const modelName = "TherapyProgress";
+const TherapyProgressSchema = DBOperation.createSchema(modelName, schema);
+TherapyProgressSchema.virtual("therapy", {
+  ref: 'Therapy',
+  localField: 'therapy_id',
+  foreignField: '_id',
+  justOne: true
+})
+TherapyProgressSchema.virtual("sub_category", {
+  ref: 'SubCategory',
+  localField: 'sub_category_id',
+  foreignField: '_id',
+  justOne: true
+})
+TherapyProgressSchema.virtual("user", {
+  ref: 'User',
+  localField: 'user_id',
+  foreignField: '_id',
+  justOne: true
+})
+
+TherapyProgressSchema.post(["find", 'update', 'updateMany'], handleURL);
+TherapyProgressSchema.post("aggregate", handleURL);
+TherapyProgressSchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+TherapyProgressSchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+  values.map(async (item) => item.thumbnail_url = await signURL(item.thumbnail_url));
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.thumbnail_url = await signURL(value.thumbnail_url);
+  return value;
+}
+
+let TherapyProgressModel = DBOperation.createModel(modelName, TherapyProgressSchema);
+const TherapyProgress = new SchemaMethods(TherapyProgressModel);
+export default TherapyProgress;
+import mongoose from "mongoose";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  },
+  rating: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  review: {
+    type: String,
+    required: false,
+    trim: true
+  },
+  resource_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Resource",
+    trim: true,
+  },
+  therapy_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Therapy",
+    trim: true,
+  }
+};
+const modelName = "ReviewRating";
+const ReviewRatingSchema = DBOperation.createSchema(modelName, schema);
+ReviewRatingSchema.virtual("user", {
+  ref: 'User',
+  localField: 'user_id',
+  foreignField: '_id',
+  justOne: true
+})
+ReviewRatingSchema.virtual("resource", {
+  ref: 'Resource',
+  localField: 'resource_id',
+  foreignField: '_id',
+  justOne: true
+})
+ReviewRatingSchema.virtual("therapy", {
+  ref: 'Therapy',
+  localField: 'therapy_id',
+  foreignField: '_id',
+  justOne: true
+})
+
+let ReviewRatingModel = DBOperation.createModel(modelName, ReviewRatingSchema);
+const ReviewRating = new SchemaMethods(ReviewRatingModel);
+export default ReviewRating;
+import mongoose from "mongoose";
+const ModeSchema = new mongoose.Schema(
+    {
+        name: {
+            type: String,
+            require: true
+        },
+        price: {
+            type: Number,
+            require: true
+        },
+        isActive: {
+            type: Boolean,
+            default: true
+        },
+        doctorId: {
+            type: mongoose.Schema.Types.ObjectId,
+            require: true
+        },
+        description: {
+            type: String,
+            default: "",  // Default to an empty string if not provided
+        },
+    },
+    {
+        timestamps: true,
+    }
+);
+
+const Mode =  mongoose.model("Mode", ModeSchema);
+export default Mode;
+import mongoose from "mongoose";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+    default: "",
+  },
+  thumbnail_url: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  },
+  thumbnail_url2: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  },
+  affirmationzoneimge: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  },
+  category_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Category",
+    required: true,
+    trim: true,
+    autopopulate: true
+  },
+  sub_category_code: {
+    type: String,
+    required: true,
+    trim: true,
+    unique: true,
+  },
+  is_upcomming: {
+    type: Boolean,
+    required: false,
+    default: false
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  }
+};
+
+
+const modelName = "SubCategory";
+const SubCategorySchema = DBOperation.createSchema(modelName, schema);
+SubCategorySchema.virtual("category", {
+  ref: 'Category',
+  localField: 'category_id',
+  foreignField: '_id',
+  justOne: true
+})
+
+SubCategorySchema.post(["find", 'update', 'updateMany'], handleURL);
+SubCategorySchema.post("aggregate", handleURL);
+SubCategorySchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+SubCategorySchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+  values.map(async (item) => item.thumbnail_url = await signURL(item.thumbnail_url));
+  values.map(async (item) => item.thumbnail_url2 = await signURL(item.thumbnail_url2));
+  values.map(async (item) => item.affirmationzoneimge = await signURL(item.affirmationzoneimge));
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.thumbnail_url = await signURL(value.thumbnail_url);
+  value.thumbnail_url2 = await signURL(value.thumbnail_url2);
+  value.affirmationzoneimge = await signURL(value.affirmationzoneimge);
+  return value;
+}
+
+let SubCategoryModel = DBOperation.createModel(modelName, SubCategorySchema);
+const SubCategory = new SchemaMethods(SubCategoryModel);
+
+export default SubCategory;
+import mongoose from "mongoose";
+import DBOperation from './../shared/services/database/database_operation.service.js';
+import SchemaMethods from './../shared/services/database/schema_methods.service.js';
+
+const schema = {
+  plan_type: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubscribePaymentCard",
+    trim: true,
+    default: null,
+  },
+  googlePayId: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  applePayId: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  priceId: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  subscribeScheduleId: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  subscribeId: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  priceDetail: {
+    type: Object,
+    trim: true,
+    default: null,
+  },
+  current_phase: {
+    type: Object,
+    trim: true,
+    default: null,
+  },
+  expiry_time: {
+    type: Date,
+    trim: true,
+    default: null,
+  },
+  payment_id: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  paymentDetail: {
+    type: Object,
+    trim: true,
+    default: null,
+  },
+  order_id: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  signature: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    trim: true,
+    default: null,
+  },
+  is_schedule: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false,
+  },
+  deleted_at: {
+    type: Date,
+    default: null,
+  },
+};
+
+const modelName = 'Payment';
+const PaymentSchema = DBOperation.createSchema(modelName, schema);
+
+let PaymentModel = DBOperation.createModel(modelName, PaymentSchema);
+const Payment = new SchemaMethods(PaymentModel);
+export default Payment;
+import mongoose from "mongoose";
+import { FAVORITE_CONTENT_TYPE } from "../shared/constant/types.const.js";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  content_type: {
+    type: String,
+    enum: [FAVORITE_CONTENT_TYPE.THERAPY, FAVORITE_CONTENT_TYPE.RESOURCE]
+  },
+  favourite_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    refPath: 'model_type'
+  },
+  model_type: {
+    type: String,
+    enum: [FAVORITE_CONTENT_TYPE[FAVORITE_CONTENT_TYPE.THERAPY], FAVORITE_CONTENT_TYPE[FAVORITE_CONTENT_TYPE.RESOURCE]]
+  },
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  },
+};
+const modelName = "Favorites";
+const FavoriteSchema = DBOperation.createSchema(modelName, schema);
+FavoriteSchema.virtual("user", {
+  ref: 'User',
+  localField: 'user_id',
+  foreignField: '_id',
+  justOne: true
+})
+FavoriteSchema.virtual("favourite", {
+  refPath: 'model_type',
+  localField: 'favourite_id',
+  foreignField: '_id',
+  justOne: true
+})
+
+let FavoritesModel = DBOperation.createModel(modelName, FavoriteSchema);
+const Favorites = new SchemaMethods(FavoritesModel);
+export default Favorites;
+import mongoose from "mongoose";
+import { INTRO_VIDEO_FOR } from "../shared/constant/types.const.js";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+    default: "",
+  },
+  description: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  },
+  category_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Category",
+    required: false,
+    trim: true,
+  },
+  sub_category_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory",
+    required: false,
+    trim: true,
+  },
+  resource_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Resource",
+    required: true,
+    trim: true,
+  },
+  content_type: {
+    type: Number,
+    required: true,
+    trim: true,
+    default: INTRO_VIDEO_FOR.SUBCATEGORY,
+    enum: Object.values(INTRO_VIDEO_FOR)
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  }
+};
+const modelName = "IntroVideos";
+const IntroVideosSchema = DBOperation.createSchema(modelName, schema);
+IntroVideosSchema.virtual("category", {
+  ref: 'Category',
+  localField: 'category_id',
+  foreignField: '_id',
+  justOne: true
+})
+IntroVideosSchema.virtual("sub_category", {
+  ref: 'SubCategory',
+  localField: 'sub_category_id',
+  foreignField: '_id',
+  justOne: true
+})
+IntroVideosSchema.virtual("resource", {
+  ref: 'Resource',
+  localField: 'resource_id',
+  foreignField: '_id',
+  justOne: true
+})
+let IntroVideosModel = DBOperation.createModel(modelName, IntroVideosSchema);
+const IntroVideos = new SchemaMethods(IntroVideosModel);
+export default IntroVideos;
+import mongoose from "mongoose";
+const DoctorSchema = new mongoose.Schema(
+    {
+        firstName: {
+            type: String,
+            require: true
+        },
+        lastName: {
+            type: String,
+            require: true
+        },
+        email: {
+            type: String,
+            require: true
+        },
+        password: {
+            type: String,
+            require: true
+        },
+        contactNumber: {
+            type: String,
+            require: true
+        },
+        gender: {
+            type: String,
+            require: true
+        },
+        role: {
+            type: String,
+            require: true
+        },
+        destination: {
+            type: String,
+            require: true
+        },
+        totalPatients: {
+            type: String,
+            require: true
+        },
+        experience: {
+            type: Number,
+            require: true
+        },
+        rating: {
+            type: Number,
+            require: true
+        },
+        review: {
+            type: String,
+            require: true
+        },
+        about: {
+            type: String,
+            require: true
+        },
+        profileImage:{
+            type: String,
+        },
+        token: {
+            type: String,
+            require: true
+        },
+        bankingDetails: {
+            type: {
+                accountName: {
+                    type: String,
+                    require: true
+                },
+                accountNumber: {
+                    type: String,
+                    require: true
+                },
+                bankName: {
+                    type: String,
+                    require: true
+                },
+                bankAddress: {
+                    type: String,
+                    require: true
+                },
+                IbanNumber: {
+                    type: String,
+                    require: true
+                },
+                accountType: {
+                    type: String,
+                    require: true
+                },
+            }
+        },
+        isOnline: {
+            type: Boolean,
+            default: true,
+        }
+    },
+    {
+        timestamps: true,
+    }
+);
+
+//module.exports = mongoose.model("Doctor", DoctorSchema);
+//const Appointment = mongoose.model('Appointment', AppointmentSchema);
+
+const Doctor = mongoose.model("Doctor", DoctorSchema);
+export default Doctor;
+import mongoose from "mongoose";
+const appointmentSchema = new mongoose.Schema(
+    {
+        doctorId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Doctor",  // Corrected the typo from "Dcotor" to "Doctor"
+            require: true
+        },
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Users",
+            require: true
+        },
+        date: {
+            type: String,
+            require: true
+        },
+        timeSlot: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "DoctorAvailability",
+            require: true
+        },
+        modeId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Mode",
+            require: true
+        },
+        price: {
+            type: Number,
+            require: true
+        },
+        name: {
+            type: String,
+            require: true
+        },
+        ageRange: {
+            type: String,
+            require: true
+        },
+        contactNumber: {
+            type: String,
+            require: true
+        },
+        gender: {
+            type: String,
+            require: true
+        },
+        problem: {
+            type: String,
+            require: true
+        },
+        paymentMode: {
+            type: String,
+        },
+        paymentStatus: {
+            type: String,
+            enum: ['Done', 'Pending']
+        },
+        status: {
+            type: String,
+            enum: ['Upcoming', 'Completed', 'Cancel']
+        },
+        prescription: {
+            type: String
+        },
+        prescriptionDate: {
+            type: String
+        },
+        isOther: {
+            type: Boolean
+        },
+        reason: {
+            type: String
+        },
+        rescheduleReason: {
+            type: String
+        },
+        paymentLink: {
+            type: String,
+            default: null
+        },
+        paymentId: {
+            type: String,
+            default: null
+        }
+    },
+    {
+        timestamps: true,
+    }
+);
+
+//module.exports = mongoose.model("Appointment", appointmentSchema);
+const Appointment = mongoose.model('Appointment', appointmentSchema);
+
+export default Appointment;
+import mongoose from "mongoose";
+const doctorAvailability = new mongoose.Schema(
+    {
+        doctorId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Dcotor",
+            require: true
+        },
+        date: {
+            type: String,
+            require: true,
+            unique: true,
+            index: true
+        },
+        mode: {
+            type: [{
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Mode",
+            }],
+        },
+        slot:
+            [
+                {
+                    time: { type: String, require: true },
+                    isBooked: { type: Boolean, require: true, default: false }
+                }
+            ]
+    },
+    {
+        timestamps: true,
+    }
+);
+
+const DoctorAvailability = mongoose.model("DoctorAvailability", doctorAvailability);
+export default DoctorAvailability;
+import mongoose from "mongoose";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+
+// mongoose schema
+const schema = {
+  resource_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Resource",
+    required: true,
+    trim: true,
+  },
+  sub_category_id: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory"
+  }],
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  }
+};
+const modelName = "AffirmationResource";
+const AffirmationResourceSchema = DBOperation.createSchema(modelName, schema);
+
+AffirmationResourceSchema.post(["find", 'update', 'updateMany'], handleURL);
+AffirmationResourceSchema.post("aggregate", handleURL);
+AffirmationResourceSchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+AffirmationResourceSchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+  await Promise.all(values.map(async (item) => {
+    item.thumbnail_url = await signURL(item.thumbnail_url)
+    item.url = await signURL(item.url)
+
+    if(item.sub_category !== undefined){
+        await Promise.all(item.sub_category.map(async(subcategory) => {
+                subcategory.thumbnail_url  = await signURL(subcategory.thumbnail_url);
+                subcategory.thumbnail_url2 = await signURL(subcategory.thumbnail_url2);
+                subcategory.affirmationzoneimge = await signURL(subcategory.affirmationzoneimge);
+              }
+            )
+        )
+      }
+  }));
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.thumbnail_url = await signURL(value.thumbnail_url);
+  value.url = await signURL(value.url);
+  return value;
+}
+
+AffirmationResourceSchema.virtual("resource", {
+  ref: 'Resource',
+  localField: 'resource_id',
+  foreignField: '_id',
+  justOne: true
+})
+
+AffirmationResourceSchema.virtual("sub_category", {
+  ref: 'SubCategory',
+  localField: 'sub_category_id',
+  foreignField: '_id'
+})
+
+let ResourceModel = DBOperation.createModel(modelName, AffirmationResourceSchema);
+const AffirmationResource = new SchemaMethods(ResourceModel);
+export default AffirmationResource;
+import DBOperation from './../shared/services/database/database_operation.service.js';
+import SchemaMethods from './../shared/services/database/schema_methods.service.js';
+import mongoose from "mongoose";
+
+// mongoose schema
+const schema = {
+  image: {
+    type: String,
+    required: false,
+    default: ''
+  },
+  description: {
+    type: String,
+    default: ''
+  },
+  user_ids: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  }],
+  schedule: {
+    type: Date,
+    default: null,
+    required: true,
+  }
+};
+const modelName = 'Quote';
+const QuoteSchema = DBOperation.createSchema(modelName, schema);
+let QuoteModel = DBOperation.createModel(modelName, QuoteSchema);
+const Quote = new SchemaMethods(QuoteModel);
+export default Quote;import mongoose from "mongoose";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  question: {
+    type: String,
+    required: true,
+    trim: true,
+    default: "",
+  },
+  question_category: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory",
+    required: false,
+    trim: true
+  },
+  health_weights: {
+    type: JSON,
+    required: false,
+    trim: true,
+    default: {},
+  },
+  question_type: {
+    type: Number,
+    required: true
+  },
+  combination_code_ids: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory",
+    autopopulate: true
+  }],
+  thumbnail_url: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  },
+  status: {
+    type: Number,
+    required: true,
+    default: 1,
+  },
+};
+const modelName = "Question";
+const QuestionSchema = DBOperation.createSchema(modelName, schema);
+QuestionSchema.virtual("combination_codes", {
+  ref: 'SubCategory',
+  localField: 'combination_code_ids',
+  foreignField: '_id',
+})
+
+QuestionSchema.post(["find", 'update', 'updateMany'], handleURL);
+QuestionSchema.post("aggregate", handleURL);
+QuestionSchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+QuestionSchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+  values.map(async (item) => item.thumbnail_url = await signURL(item.thumbnail_url));
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.thumbnail_url = await signURL(value.thumbnail_url);
+  return value;
+}
+
+let QuestionModel = DBOperation.createModel(modelName, QuestionSchema);
+const Question = new SchemaMethods(QuestionModel);
+export default Question;
+import { REFERRER_TYPE } from "../shared/constant/types.const.js";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+import mongoose from "mongoose";
+
+// mongoose schema
+const schema = {
+  referrer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  },
+  referee: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  },
+  refer_type: {
+    type: Number,
+    enum: [...Object.values(REFERRER_TYPE)]
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  }
+};
+
+const modelName = "ReferUser";
+const ReferUserSchema = DBOperation.createSchema(modelName, schema);
+ReferUserSchema.virtual("user", {
+  ref: 'User',
+  localField: 'user_id',
+  foreignField: '_id',
+  justOne: true
+})
+
+let ReferUserModel = DBOperation.createModel(modelName, ReferUserSchema);
+const ReferUser = new SchemaMethods(ReferUserModel);
+export default ReferUser;
+import { RESOURCE_FORMAT } from "../shared/constant/types.const.js";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+
+// mongoose schema
+const schema = {
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+    default: "",
+  },
+  description: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  },
+  session_counts: {
+    type: Number,
+    required: true,
+    default: 1,
+  },
+  thumbnail_url: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  },
+  duration: {
+    type: String,
+    required: true,
+    default: "",
+  },
+  format: {
+    type: Number,   /* 1 : video, 2: audio */
+    required: true,
+    default: 1,
+    enum: [RESOURCE_FORMAT.VIDEO, RESOURCE_FORMAT.AUDIO]
+  },
+  status: {
+    type: Number,
+    required: true,
+    default: 1,
+  },
+  is_upcomming: {
+    type: Boolean,
+    required: false,
+    default: false
+  },
+  percentage: {
+    type: Number,
+    required: false,
+    default: false
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  }
+};
+const modelName = "Therapy";
+const TherapySchema = DBOperation.createSchema(modelName, schema);
+TherapySchema.post(["find", 'update', 'updateMany'], handleURL);
+TherapySchema.post("aggregate", handleURL);
+TherapySchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+TherapySchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+  values.map(async (item) => item.thumbnail_url = await signURL(item.thumbnail_url));
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.thumbnail_url = await signURL(value.thumbnail_url);
+  return value;
+}
+
+let TherapyModel = DBOperation.createModel(modelName, TherapySchema);
+const Therapy = new SchemaMethods(TherapyModel);
+export default Therapy;
+import mongoose from "mongoose";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  question_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Question",
+    required: true,
+    trim: true,
+  },
+  question_answer: {
+    type: Boolean,
+    required: true,
+    trim: true
+  },
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  },
+};
+const modelName = "UserAnswers";
+const UserAnswerSchema = DBOperation.createSchema(modelName, schema);
+UserAnswerSchema.virtual("question", {
+  ref: 'Question',
+  localField: 'question_id',
+  foreignField: '_id',
+  justOne: true
+})
+UserAnswerSchema.virtual("user", {
+  ref: 'User',
+  localField: 'user_id',
+  foreignField: '_id',
+  justOne: true
+})
+let UserAnswersModel = DBOperation.createModel(modelName, UserAnswerSchema);
+const UserAnswers = new SchemaMethods(UserAnswersModel);
+export default UserAnswers;
+import mongoose from "mongoose";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  resource_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Resource",
+    required: true,
+    trim: true,
+  },
+  therapy_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Therapy",
+    required: true,
+    trim: true,
+  },
+  sub_category_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory",
+    required: true,
+    trim: true,
+  },
+  progress_percent: {
+    type: Number,
+    trim: true,
+    default: 0
+  },
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  },
+  spent_time: {
+    type: String,
+    required: true,
+    trim: true,
+    default: "00:00:00"
+  }
+};
+const modelName = "UserProgress";
+const UserProgressSchema = DBOperation.createSchema(modelName, schema);
+UserProgressSchema.virtual("resource", {
+  ref: 'Resource',
+  localField: 'resource_id',
+  foreignField: '_id',
+})
+UserProgressSchema.virtual("therapy", {
+  ref: 'Therapy',
+  localField: 'therapy_id',
+  foreignField: '_id',
+  justOne: true
+})
+UserProgressSchema.virtual("sub_category", {
+  ref: 'SubCategory',
+  localField: 'sub_category_id',
+  foreignField: '_id',
+  justOne: true
+})
+UserProgressSchema.virtual("user", {
+  ref: 'User',
+  localField: 'user_id',
+  foreignField: '_id',
+  justOne: true
+})
+
+UserProgressSchema.post(["find", 'update', 'updateMany'], handleURL);
+UserProgressSchema.post("aggregate", handleURL);
+UserProgressSchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+UserProgressSchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+  values.map(async (item) => item.thumbnail_url = await signURL(item.thumbnail_url));
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.thumbnail_url = await signURL(value.thumbnail_url);
+  return value;
+}
+
+let UserProgressModel = DBOperation.createModel(modelName, UserProgressSchema);
+const UserProgress = new SchemaMethods(UserProgressModel);
+export default UserProgress;
+import mongoose from 'mongoose';
+import { COUPON_FOR_WHO, COUPON_TYPE, DISCOUNT_TYPE } from '../shared/constant/types.const.js';
+import DBOperation from './../shared/services/database/database_operation.service.js';
+import SchemaMethods from './../shared/services/database/schema_methods.service.js';
+
+// mongoose schema
+const schema = {
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: false,
+    ref: "User"
+  },
+  coupon_type: {
+    type: Number,
+    required: true,
+    trim: true,
+    enum: Object.values(COUPON_TYPE)
+  },
+  coupon_code: {
+    type: String,
+    required: true,
+    trim: true,
+    default: ''
+  },
+  coupon_for: {
+    type: Number,
+    trim: true,
+    enum: Object.values(COUPON_FOR_WHO)
+  },
+  expire_time: {
+    type: Number,
+    required: false,
+    trim: true,
+  },
+  discount_type: {
+    type: Number,
+    required: false,
+    trim: true,
+    enum: Object.values(DISCOUNT_TYPE)
+  },
+  discount_amount: {
+    type: Number,
+    required: false,
+    trim: true,
+  },
+  discount_percentage: {
+    type: Number,
+    required: false,
+    trim: true,
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  }
+};
+const modelName = 'Coupon';
+const CouponSchema = DBOperation.createSchema(modelName, schema);
+CouponSchema.virtual("user", {
+  ref: 'User',
+  localField: 'user_id',
+  foreignField: '_id',
+  justOne: true
+})
+
+let CouponModel = DBOperation.createModel(modelName, CouponSchema);
+const Coupon = new SchemaMethods(CouponModel);
+export default Coupon;import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  androidVersion: {
+    type: String,
+    trim: true,
+  },
+  iOSVersion: {
+    type: String,
+    unique: true,
+    trim: true,
+  },
+  androidForceUpdate: {
+    type: Number,
+    trim: true,
+  },
+  iOSForceUpdate: {
+    type: Number,
+    trim: true,
+  },
+};
+const modelName = "appversions";
+const AppversionSchema = DBOperation.createSchema(modelName, schema);
+let AppversionModel = DBOperation.createModel(modelName, AppversionSchema);
+const Appversion = new SchemaMethods(AppversionModel);
+export default Appversion;
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+import { encrypt, decrypt } from "./../shared/utils/utility.js";
+
+// mongoose schema
+const schema = {
+  name: {
+    type: String,
+    trim: true,
+    default: "",
+  },
+  email: {
+    type: String,
+    unique: true,
+    required: [true, "Email is required!"],
+    trim: true,
+    set: encrypt,
+    get: decrypt,
+  },
+  phone_number: {
+    type: Number,
+    unique: true,
+    required: [false],
+    trim: true,
+  },
+  password: {
+    type: String,
+    trim: true,
+    required: [true, "Password is required!"],
+    select: false,
+    set: encrypt,
+    get: decrypt,
+  },
+  status: {
+    type: Number, // 0: Inactive, 1: Active
+    trim: true,
+    required: true,
+    default: 1,
+  },
+  address: {
+    type: String,
+    trim: true,
+  },
+  city: {
+    type: String,
+    trim: true,
+  },
+  state: {
+    type: String,
+    trim: true,
+  },
+  country: {
+    type: String,
+    trim: true,
+  },
+  countryCode: {
+    type: Number,
+    trim: true,
+    null: false,
+  },
+  zipcode: {
+    type: Number,
+  },
+};
+const modelName = "Admin";
+const AdminSchema = DBOperation.createSchema(modelName, schema);
+let AdminModel = DBOperation.createModel(modelName, AdminSchema);
+const Admin = new SchemaMethods(AdminModel);
+export default Admin;
+import DBOperation from './../shared/services/database/database_operation.service.js';
+import SchemaMethods from './../shared/services/database/schema_methods.service.js';
+
+const schema = {
+    image: {
+        type: String,
+        required: false,
+        default: ''
+    },
+    description: {
+        type: String,
+        required: true,
+        default: ''
+    },
+    title: {
+        type: String,
+        default: null,
+        required: true,
+    }
+};
+
+const modelName = 'SubscribeCard';
+const SubscribeCardSchema = DBOperation.createSchema(modelName, schema);
+let SubscribeCardModel = DBOperation.createModel(modelName, SubscribeCardSchema);
+const SubscribeCard = new SchemaMethods(SubscribeCardModel);
+export default SubscribeCard;import mongoose from "mongoose";
+import { GENDER, TYPES, USER_ROLE } from "../shared/constant/types.const.js";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+import { encrypt, decrypt } from "./../shared/utils/utility.js";
+
+// mongoose schema
+const schema = {
+  name: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  email: {
+    type: String,
+    trim: true,
+    set: encrypt,
+    get: decrypt,
+    default: null,
+  },
+  phone_number: {
+    type: Number,
+    required: false,
+    trim: true,
+    default: null,
+  },
+  password: {
+    type: String,
+    trim: true,
+    required: false,
+    select: false,
+    default: null,
+    set: encrypt,
+    get: decrypt,
+  },
+  profile_image: {
+    type: String,
+    trim: true,
+    default: "",
+  },
+  status: {
+    type: Number, // 0: Inactive, 1: Active
+    trim: true,
+    required: true,
+    default: 1,
+  },
+  login_type: {
+    type: Number, // 0 : Normal, 1: Google, 2: Facebook, 3: Apple
+    enum: Object.values(TYPES),
+    trim: true,
+    required: true,
+    default: 0,
+  },
+  social_id: {
+    type: String, // Social login's social id
+    trim: true,
+    default: null,
+  },
+  address: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  city: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  state: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  country: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  countryCode: {
+    type: Number,
+    trim: true,
+    null: false,
+    default: null,
+  },
+  zipcode: {
+    type: Number,
+    default: null,
+  },
+  Health_scores: {
+    type: JSON,
+    default: {},
+  },
+  fb_access_token: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  is_verified: {
+    type: Boolean,
+    default: false,
+  },
+  dob: {
+    type: String,
+    required: false,
+    default: null,
+  },
+  gender: {
+    type: String,
+    enum: [...Object.values(GENDER), null],
+    default: null,
+  },
+  random_string: {
+    type: String,
+    default: null,
+  },
+  confirmation_otp: {
+    type: String,
+    trim: true,
+    required: false,
+    default: "",
+    set: encrypt,
+    get: decrypt,
+  },
+  is_splash_answered: {
+    type: Boolean,
+    default: false,
+  },
+  role: {
+    type: Number,
+    enum: [...Object.values(USER_ROLE)],
+    required: true,
+    default: USER_ROLE.PATIENT,
+  },
+  access_token: {
+    type: String,
+    trim: true,
+    required: false,
+    default: "",
+    set: encrypt,
+    get: decrypt,
+  },
+  customer_id: {
+    type: String,
+    required: false,
+    default: "",
+  },
+  is_doctor_consulted: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  is_trial_cancel: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  is_plan_cancel: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  is_trial_used: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  is_trial_running: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  is_plan_running: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  doctor_suggestion: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory",
+    required: false,
+  }],
+  trial_redeem_time: {
+    type: Date,
+    default: null,
+  },
+  is_schedule: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false,
+  },
+  userTrial: {
+    type: Boolean,
+    trim: true,
+    default: true,
+  },
+  is_signup: {
+    type: Boolean,
+    trim: true,
+    default: true,
+  },
+  defaultPaymentMethodId: {
+    type: Object,
+    trim: true,
+    default: null,
+  },
+  deleted_at: {
+    type: Date,
+    default: null,
+  },
+};
+
+// Create Mongoose Schema
+const UserSchema = new mongoose.Schema(schema);
+
+// Adding custom methods to the schema
+UserSchema.statics.get = async function(filter, projection = {}) {
+  return this.find(filter, projection).lean();
+};
+
+UserSchema.statics.updateUser = async function(filter, update) {
+  return this.updateOne(filter, update);
+};
+
+// Handle URL transformations as before
+async function handleURL(values) {
+  if (Array.isArray(values)) {
+    await Promise.all(
+      values.map(async (item) => {
+        item.profile_image = await signURL(item.profile_image);
+      })
+    );
+  } else if (values && typeof values === "object") {
+    values.profile_image = await signURL(values.profile_image);
+  }
+  return values;
+}
+async function handleSingleURL(value) {
+  if (!value) return;
+  value["profile_image"] = await signURL(value.profile_image);
+  return value;
+}
+
+UserSchema.post(["find", "update", "updateMany"], handleURL);
+UserSchema.post("aggregate", handleURL);
+UserSchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+UserSchema.post("save", handleSingleURL);
+
+UserSchema.virtual("sub_category", {
+  ref: "SubCategory",
+  localField: "sub_category_id",
+  foreignField: "_id",
+});
+
+// Create the Mongoose model
+const UserModel = mongoose.model("User", UserSchema);
+
+export default UserModel;
+import DBOperation from '../shared/services/database/database_operation.service.js';
+import SchemaMethods from '../shared/services/database/schema_methods.service.js';
+
+// mongoose schema
+const schema = {
+    device_id: {
+        type: String,
+        required: true,
+        trim: true
+      },
+};
+const modelName = 'UserDevices';
+const UserDevicesSchema = DBOperation.createSchema(modelName, schema);
+
+let UserDevicesModel = DBOperation.createModel(modelName, UserDevicesSchema);
+const UserDevices = new SchemaMethods(UserDevicesModel);
+export default UserDevices;import mongoose from "mongoose";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  resource_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Resource",
+    required: true,
+    trim: true,
+  },
+  therapy_ids: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Therapy"
+  }],
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  }
+};
+const modelName = "TherapyResources";
+const TherapyResourcesSchema = DBOperation.createSchema(modelName, schema);
+TherapyResourcesSchema.virtual("resource", {
+  ref: 'Resource',
+  localField: 'resource_id',
+  foreignField: '_id',
+  justOne: true
+})
+TherapyResourcesSchema.virtual("therapy", {
+  ref: 'Therapy',
+  localField: 'therapy_ids',
+  foreignField: '_id',
+})
+
+
+TherapyResourcesSchema.post(["find", 'update', 'updateMany'], handleURL);
+TherapyResourcesSchema.post("aggregate", handleURL);
+TherapyResourcesSchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+TherapyResourcesSchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+  values.map(async (item) => {
+    item.thumbnail_url = await signURL(item.thumbnail_url)
+    item.url = await signURL(item.url)
+  });
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.thumbnail_url = await signURL(value.thumbnail_url);
+  value.url = await signURL(value.url);
+  return value;
+}
+
+
+let TherapyResourcesModel = DBOperation.createModel(modelName, TherapyResourcesSchema);
+const TherapyResources = new SchemaMethods(TherapyResourcesModel);
+export default TherapyResources;
+import DBOperation from './../shared/services/database/database_operation.service.js';
+import SchemaMethods from './../shared/services/database/schema_methods.service.js';
+import mongoose from "mongoose";
+
+const schema = {
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+        trim: true,
+    },
+    type: {
+        type: String,
+        required: true,
+        default: null
+    },
+    payment_Method_id: {
+        type: String,
+        required: true,
+        default: null
+    },
+};
+
+const modelName = 'PaymentMethod';
+const PaymentSchema = DBOperation.createSchema(modelName, schema);
+
+let PaymentModel = DBOperation.createModel(modelName, PaymentSchema);
+const PaymentMethod = new SchemaMethods(PaymentModel);
+export default PaymentMethod;
+import mongoose from "mongoose";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  sub_category_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory",
+    required: true,
+    trim: true,
+  },
+  type: {
+    type: String,
+    trim: true,
+    default: "",
+  },
+};
+const modelName = "SubCategoryType";
+const SubCategoryTypeSchema = DBOperation.createSchema(modelName, schema);
+SubCategoryTypeSchema.virtual("sub_category", {
+  ref: 'SubCategory',
+  localField: 'sub_category_id',
+  foreignField: '_id',
+  justOne: true
+})
+let SubCategoryTypeModel = DBOperation.createModel(modelName, SubCategoryTypeSchema);
+const SubCategoryType = new SchemaMethods(SubCategoryTypeModel);
+export default SubCategoryType;
+import mongoose from "mongoose";
+import { SLUG_TYPE, SLUG_RESOURCE_FORMAT  } from "../shared/constant/types.const.js";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+
+
+// mongoose schema
+const schema = {
+  content_type: {
+    type: Number,
+    required: true,
+    trim: true,
+    default: "",
+    enum: Object.values(SLUG_TYPE)
+  },
+  title: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  },
+  description: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  },
+  url: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  },
+  format: {
+    type: Number,   /* 1: Image , 2: video */
+    required: true,
+    default: 1,
+    enum: [SLUG_RESOURCE_FORMAT.IMAGE, SLUG_RESOURCE_FORMAT.VIDEO]
+  },
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: false,
+    trim: true,
+  },
+  ios_version: {
+    type: String,
+    required: false,
+    trim: true,
+    default: "",
+  }
+};
+const modelName = "Slug";
+const SlugSchema = DBOperation.createSchema(modelName, schema);
+SlugSchema.post(["find", 'update', 'updateMany'], handleURL);
+SlugSchema.post("aggregate", handleURL);
+SlugSchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+SlugSchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+  values.map(async (item) => item.url = await signURL(item.url));
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.url = await signURL(value.url);
+  return value;
+}
+
+let SlugModel = DBOperation.createModel(modelName, SlugSchema);
+const Slug = new SchemaMethods(SlugModel);
+export default Slug;
+import mongoose from "mongoose";
+import { DEVICE_TYPE } from '../shared/constant/types.const.js';
+import DBOperation from '../shared/services/database/database_operation.service.js';
+import SchemaMethods from '../shared/services/database/schema_methods.service.js';
+
+// mongoose schema
+const schema = {
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  },
+  device_id: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  device_token: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  device_type: {
+    type: String, // "I": IOS, "A": Android
+    trim: true,
+    required: true,
+    enum: Object.values(DEVICE_TYPE)
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  },
+  is_loggedOut: {
+    type: Boolean,
+    default: false
+  },
+  loggedOut_at: {
+    type: Date,
+    default: null
+  }
+};
+const modelName = 'UserToken';
+const UserTokenSchema = DBOperation.createSchema(modelName, schema);
+UserTokenSchema.virtual("user", {
+  ref: 'User',
+  localField: 'user_id',
+  foreignField: '_id',
+  justOne: true
+})
+let UserTokenModel = DBOperation.createModel(modelName, UserTokenSchema);
+const UserToken = new SchemaMethods(UserTokenModel);
+export default UserToken;import mongoose from "mongoose";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+
+// mongoose schema
+const schema = {
+  resource_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Resource",
+    required: true,
+    trim: true,
+  },
+  sub_category_id: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory"
+  }],
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  }
+};
+const modelName = "SubCategoryResource";
+const SubCatResourceSchema = DBOperation.createSchema(modelName, schema);
+
+SubCatResourceSchema.post(["find", 'update', 'updateMany'], handleURL);
+SubCatResourceSchema.post("aggregate", handleURL);
+SubCatResourceSchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+SubCatResourceSchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+  values.map(async (item) => {
+    item.thumbnail_url = await signURL(item.thumbnail_url)
+    item.url = await signURL(item.url)
+  });
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.thumbnail_url = await signURL(value.thumbnail_url);
+  value.url = await signURL(value.url);
+  return value;
+}
+
+SubCatResourceSchema.virtual("resource", {
+  ref: 'Resource',
+  localField: 'resource_id',
+  foreignField: '_id',
+  justOne: true
+})
+
+SubCatResourceSchema.virtual("sub_category", {
+  ref: 'SubCategory',
+  localField: 'sub_category_id',
+  foreignField: '_id'
+})
+
+let ResourceModel = DBOperation.createModel(modelName, SubCatResourceSchema);
+const SubCategoryResource = new SchemaMethods(ResourceModel);
+export default SubCategoryResource;
+import mongoose from "mongoose";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+// mongoose schema
+const schema = {
+  therapy_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Therapy",
+    required: true,
+    trim: true,
+  },
+  sub_category_id: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCategory"
+  }],
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: null
+  }
+};
+const modelName = "SubCategoryTherapy";
+const SubCategoryTherapySchema = DBOperation.createSchema(modelName, schema);
+SubCategoryTherapySchema.virtual("therapy", {
+  ref: 'Therapy',
+  localField: 'therapy_id',
+  foreignField: '_id',
+  justOne: true
+})
+SubCategoryTherapySchema.virtual("sub_category", {
+  ref: 'SubCategory',
+  localField: 'sub_category_id',
+  foreignField: '_id'
+})
+
+SubCategoryTherapySchema.post(["find", 'update', 'updateMany'], handleURL);
+SubCategoryTherapySchema.post("aggregate", handleURL);
+SubCategoryTherapySchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+SubCategoryTherapySchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+   /*old code 
+  values.map(async (item) => {
+    item.thumbnail_url = await signURL(item.thumbnail_url);
+  }) */
+  if(values.length>0){
+    let subcategoryId;
+    values.forEach((item) => {
+      if (item.sub_category && item.sub_category.subcategory_id) {
+        subcategoryId = item.sub_category.subcategory_id;
+      }
+    });
+    
+    if (subcategoryId) {
+      await Promise.all(
+        values.map(async (item) => {
+          item.therapy.thumbnail_url = await signURL(item.therapy.thumbnail_url);
+          item.sub_category.thumbnail_url = await signURL(item.sub_category.thumbnail_url);
+          item.sub_category.thumbnail_url2 = await signURL(item.sub_category.thumbnail_url2);
+          item.sub_category.affirmationzoneimge = await signURL(item.sub_category.affirmationzoneimge);
+        })
+      );
+    } else {
+      await Promise.all(
+        values.map(async (item) => {
+          item.thumbnail_url = await signURL(item.thumbnail_url);
+        })
+      );
+    }
+    return values;
+  }
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.thumbnail_url = await signURL(value.thumbnail_url);
+  return value;
+}
+
+
+let SubCategoryModelTherapy = DBOperation.createModel(modelName, SubCategoryTherapySchema);
+const SubCategoryTherapy = new SchemaMethods(SubCategoryModelTherapy);
+export default SubCategoryTherapy;
+import mongoose from "mongoose";
+import { RESOURCE_FORMAT } from "../shared/constant/types.const.js";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+import { signURL } from "../shared/services/file-upload/aws-s3.service.js";
+
+// mongoose schema
+const schema = {
+  name: {
+    type: String,
+    required: true,
+    default: ""
+  },
+  url: {
+    type: String,
+    required: false,
+    default: "",
+  },
+  resource_type_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "ResourceType",
+    required: false,
+    default: ""
+  },
+  format: {
+    type: Number,   /* 1 : video, 2: audio */
+    required: true,
+    default: 1,
+    enum: [RESOURCE_FORMAT.VIDEO, RESOURCE_FORMAT.AUDIO]
+  },
+  thumbnail_url: {
+    type: String,
+    required: false,
+    trim: true,
+    default: ""
+  },
+  description: {
+    type: String,
+    required: true,
+    default: "",
+  },
+  status: {
+    type: Number,
+    required: true,
+    default: 1,
+  },
+  /* duration: {
+    type: String,
+    required: true,
+  }, */
+  is_upcomming: {
+    type: Boolean,
+    required: false,
+    default: false
+  },
+  is_deleted: {
+    type: Boolean,
+    default: false
+  },
+  deleted_at: {
+    type: Date,
+    default: ""
+  },
+  how_works_title: {
+
+    type: String,
+    default: ""
+  },
+  how_works_description: {
+    type: String,
+    default: ""
+
+  }
+
+};
+const modelName = "Resource";
+const ResourceSchema = DBOperation.createSchema(modelName, schema);
+
+ResourceSchema.post(["find", 'update', 'updateMany'], handleURL);
+ResourceSchema.post("aggregate", handleURL);
+ResourceSchema.post(["findOne", "findOneAndUpdate", "updateOne"], handleSingleURL);
+ResourceSchema.post("save", handleSingleURL);
+
+async function handleURL(values) {
+  values.map(async (item) => {
+    item.thumbnail_url = await signURL(item.thumbnail_url)
+    item.url = await signURL(item.url)
+  });
+  return values;
+}
+
+async function handleSingleURL(value) {
+  if (!value) return;
+  value.thumbnail_url = await signURL(value.thumbnail_url);
+  value.url = await signURL(value.url);
+  return value;
+}
+
+
+
+ResourceSchema.virtual("resource_type", {
+  ref: 'ResourceType',
+  localField: 'resource_type_id',
+  foreignField: '_id',
+  justOne: true
+})
+
+let ResourceModel = DBOperation.createModel(modelName, ResourceSchema);
+const Resource = new SchemaMethods(ResourceModel);
+export default Resource;
+import mongoose from "mongoose";
+import DBOperation from "../shared/services/database/database_operation.service.js";
+import SchemaMethods from "../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+    user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    trim: true,
+  },
+    /* userTrial: {
+    type: Boolean,
+    trim: true,
+    //default: false, // Default value is set to false
+    }, */
+    startTrial: {
+    type: Date,
+    trim: true,
+    },
+    endTrial: {
+    type: Date,
+    trim: true,
+    },
+};
+const modelName = "trialusers";
+const TrialUsersSchema = DBOperation.createSchema(modelName, schema);
+let TrialUsersModel = DBOperation.createModel(modelName, TrialUsersSchema);
+const TrialUsers = new SchemaMethods(TrialUsersModel);
+export default TrialUsers;
+import mongoose from "mongoose";
+import DBOperation from "./../shared/services/database/database_operation.service.js";
+import SchemaMethods from "./../shared/services/database/schema_methods.service.js";
+
+// mongoose schema
+const schema = {
+  type: {
+    type: String,
+    required: true,
+    trim: true,
+    default: ""
+  },
+  sort_index: {
+    type: Number,
+    required: false,
+    trim: true,
+    default: 0
+  }
+};
+const modelName = "ResourceType";
+const ResourceTypeSchema = DBOperation.createSchema(modelName, schema);
+let ResourceTypeModel = DBOperation.createModel(modelName, ResourceTypeSchema);
+const ResourceType = new SchemaMethods(ResourceTypeModel);
+export default ResourceType;

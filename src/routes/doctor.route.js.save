@@ -1,0 +1,65 @@
+import express from 'express';
+import {
+    login,
+    addPersonalDetail,
+    addBankingDetail,
+    addAvailabilityDetail,
+    getLoggedInUser,
+    getFilterSlots,
+    getDoctorSlots,
+    deleteSlots,
+    getAllSlots,
+    addMode,
+    getMode,
+    updateMode,
+    updateModeStatus,
+    aboutDoctorDetail,
+    getPatients,
+    getAppointments,
+    addPrescription,
+    getSingleAppointment,
+    appointmentCount,
+    logout,
+    getMonthYearWiseAppointment,
+} from "../controllers/doctor.controller.js";
+
+import { authMiddleware, adminAuthMiddleware, verifyMiddleware } from "../shared/middleweres/auth.middlewere.js";
+//import auth from "../shared/middleweres/auth.middlewere.js";
+import handleUpload from "../shared/middleweres/uploadImageInBucket.middlewere.js";
+
+const router = express.Router();
+
+// Doctor
+router.post("/login", login);
+router.get("/getLoggedInUser", auth, getLoggedInUser);
+router.post("/addPersonalDetail", auth, handleUpload, addPersonalDetail);
+router.post("/addBankingDetail", auth, addBankingDetail);
+router.post("/addAvailabilityDetail", auth, addAvailabilityDetail);
+router.post("/getFilterSlots", auth, getFilterSlots);
+router.get("/getDoctorSlots", auth, getDoctorSlots);
+router.put("/deleteSlot/:id", auth, deleteSlots);
+router.get("/getAllSlots", auth, getAllSlots);
+router.get("/aboutDoctorDetail", aboutDoctorDetail);
+
+// Patients
+router.get("/getPatients", auth, getPatients);
+
+// Appointments
+router.get("/getAppointments", auth, getAppointments);
+router.get("/getSingleAppointment/:id", auth, getSingleAppointment);
+router.get("/appointmentCount", auth, appointmentCount);
+router.get("/getMonthYearWiseAppointment", auth, getMonthYearWiseAppointment);
+
+// Prescription
+router.post("/addPrescription", auth, addPrescription);
+
+// Mode
+router.post("/addMode", auth, addMode);
+router.get("/getMode", auth, getMode);
+router.put("/updateMode/:id", auth, updateMode);
+router.put("/updateModeStatus/:id", auth, updateModeStatus);
+
+// Logout
+router.post("/logout", auth, logout);
+
+export default router;

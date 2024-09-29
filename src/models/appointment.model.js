@@ -1,0 +1,96 @@
+import mongoose from "mongoose";
+import { SchemaMethods } from "./../shared/services/database/schema_methods.service.js";
+const appointmentSchema = new mongoose.Schema(
+    {
+        doctorId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Doctor",  // Corrected the typo from "Dcotor" to "Doctor"
+            require: true
+        },
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Users",
+            require: true
+        },
+        date: {
+            type: String,
+            require: true
+        },
+        timeSlot: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "DoctorAvailability",
+            require: true
+        },
+        modeId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Mode",
+            require: true
+        },
+        price: {
+            type: Number,
+            require: true
+        },
+        name: {
+            type: String,
+            require: true
+        },
+        ageRange: {
+            type: String,
+            require: true
+        },
+        contactNumber: {
+            type: String,
+            require: true
+        },
+        gender: {
+            type: String,
+            require: true
+        },
+        problem: {
+            type: String,
+            require: true
+        },
+        paymentMode: {
+            type: String,
+        },
+        paymentStatus: {
+            type: String,
+            enum: ['Done', 'Pending']
+        },
+        status: {
+            type: String,
+            enum: ['Upcoming', 'Completed', 'Cancel']
+        },
+        prescription: {
+            type: String
+        },
+        prescriptionDate: {
+            type: String
+        },
+        isOther: {
+            type: Boolean
+        },
+        reason: {
+            type: String
+        },
+        rescheduleReason: {
+            type: String
+        },
+        paymentLink: {
+            type: String,
+            default: null
+        },
+        paymentId: {
+            type: String,
+            default: null
+        }
+    },
+    {
+        timestamps: true,
+    }
+);
+
+//module.exports = mongoose.model("Appointment", appointmentSchema);
+const Appointment = mongoose.model('Appointment', appointmentSchema);
+SchemaMethods(Appointment)
+export default Appointment;
