@@ -23,6 +23,7 @@ import {
     logout,
     getTransactionHistory,
     getCallReviewsByDoctor,
+    getChatList,
 } from '../controllers/doctor.controller.js';
 
 // Import WellHeal's middlewares
@@ -57,7 +58,7 @@ router.get("/getMonthYearWiseAppointment", doctorAuthMiddleware, getMonthYearWis
 router.post("/getCallReviewsByDoctor",doctorAuthMiddleware, getCallReviewsByDoctor);
 // Prescription
 router.post("/addPrescription", doctorAuthMiddleware, addPrescription);
-
+router.get("/getChatList", doctorAuthMiddleware, getChatList);
 // Mode
 router.post("/addMode", doctorAuthMiddleware, addMode);
 router.get("/getMode", doctorAuthMiddleware, getMode);

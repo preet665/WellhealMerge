@@ -6,6 +6,8 @@ import Doctor from '../models/doctor.model.js';
 import DoctorAvailability from '../models/doctor_availability.model.js';
 import Mode from '../models/mode.model.js';
 import User from '../models/user.model.js';
+import Message from "../models/message.model.js";
+import ChatList from "../models/chatlist.model.js";
 import Appointment from '../models/appointment.model.js';
 import DoctorTokenModel from '../models/doctor_token.model.js';
 import { logger, level } from '../config/logger.js';
@@ -17,6 +19,154 @@ const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
+export const getChatList = async (req, res) => {
+    try {
+        console.log('getChatList called');
+        logger.log(level.info, 'getChatList called');
+
+        // Check for authenticated user
+        if (!req.userdata || !req.userdata._id) {
+            console.log('Unauthorized access: Missing userdata');
+            logger.log(level.warn, 'Unauthorized access: Missing userdata');
+            return res.status(401).json({ success: false, message: 'Unauthorized access' });
+        }
+
+        const userId = req.userdata._id;                                                                                                                                                                 
+        console.log(`Fetching chat list for userId: ${userId}`);                                                                                                                                         
+        logger.log(level.info, `Fetching chat list for userId: ${userId}`);                                                                                                                              
+
+        // Validate userId format                                                                                                                                                                        
+        if (!mongoose.Types.ObjectId.isValid(userId)) {                                                                                                                                                  
+            console.log(`Invalid userId format: ${userId}`);                                                                                                                                             
+            logger.log(level.error, `Invalid userId format: ${userId}`);                                                                                                                                 
+            return res.status(400).json({ success: false, message: 'Invalid userId format' });                                                                                                           
+        }                                                                                                                                                                                                
+
+        const userObjectId = new mongoose.Types.ObjectId(userId);                                                                                                                                        
+
+        // Revised Aggregation Pipeline with Correct Enum Values and Removed $isObjectId                                                                                                                 
+        const aggregationPipeline = [                                                                                                                                                                    
+            { $match: { userId: userObjectId } },                                                                                                                                                        
+            { $unwind: "$list" }, 
+            {                                                                                                                                                                                            
+                $addFields: {                                                                                                                                                                            
+                    receiverRoleLower: { $toLower: "$list.receiverRole" }
+                }                                                                                                                                                                                        
+            },                                                                                                                                                                                           
+            {                                                                                                                                                                                            
+                $lookup: {                                                                                                                                                                               
+                    from: "users", // Ensure this matches your actual collection name                                                                                                                    
+                    localField: "list.userId",                                                                                                                                                           
+                    foreignField: "_id",
+                    as: "userDetails"
+                }
+            },                                                                                                                                                                                           
+            {                                                                                                                                                                                            
+                $lookup: {                                                                                                                                                                               
+                    from: "doctors", // Ensure this matches your actual collection name                                                                                                                  
+                    localField: "list.userId",                                                                                                                                                           
+                    foreignField: "_id",                                                                                                                                                                 
+                    as: "doctorDetails"                                                                                                                                                                  
+                }
+            },
+            {                                                                                                                                                                                            
+                $lookup: {                                                                                                                                                                               
+                    from: "messages", // Ensure this matches your actual collection name                                                                                                                 
+                    localField: "list.lastMessage",                                                                                                                                                      
+                    foreignField: "_id",                                                                                                                                                                 
+                    as: "lastMessageDetails"
+                }
+            },
+            {
+                $addFields: {
+                    hasUserDetails: { $gt: [{ $size: "$userDetails" }, 0] },
+                    hasDoctorDetails: { $gt: [{ $size: "$doctorDetails" }, 0] },
+                    hasLastMessageDetails: { $gt: [{ $size: "$lastMessageDetails" }, 0] }
+                }
+            },
+            {
+                $group: {
+                    _id: "$list.roomId",
+                    chatListId: { $first: "$_id" },
+                    userDetails: {                                                                                                                                                                       
+                        $first: {
+                            $cond: [                                                                                                                                                                     
+                                { $eq: ["$receiverRoleLower", "user"] },                                                                                                                                 
+                                { $arrayElemAt: ["$userDetails", 0] },                                                                                                                                   
+                                { $arrayElemAt: ["$doctorDetails", 0] }                                                                                                                                  
+                            ]                                                                                                                                                                            
+                        }                                                                                                                                                                                
+                    },
+                    lastMessage: { $first: { $arrayElemAt: ["$lastMessageDetails", 0] } },                                                                                                               
+                    hasUserDetails: { $first: "$hasUserDetails" },                                                                                                                                       
+                    hasDoctorDetails: { $first: "$hasDoctorDetails" },                                                                                                                                   
+                    hasLastMessageDetails: { $first: "$hasLastMessageDetails" }                                                                                                                          
+                }                                                                                                                                                                                        
+            },                                                                                                                                                                                           
+            {                                                                                                                                                                                            
+                $project: {                                                                                                                                                                              
+                    _id: "$chatListId",                                                                                                                                                                  
+                    roomId: "$_id",                                                                                                                                                                      
+                    userDetails: {                                                                                                                                                                       
+                        fullName: {                                                                                                                                                                      
+                            $cond: [                                                                                                                                                                     
+                                { $eq: ["$receiverRoleLower", "user"] },                                                                                                                                 
+                                "$userDetails.name",                                                                                                                                                     
+                                {                                                                                                                                                                        
+                                    $concat: [                                                                                                                                                           
+                                        "$userDetails.firstName",                                                                                                                                        
+                                        " ",
+                                        "$userDetails.lastName"
+                                    ]
+                                }
+                            ]
+                        },
+                        profileImage: "$userDetails.profileImage"
+                    },
+                    lastMessage: {
+                        message: "$lastMessage.message",
+                        date: "$lastMessage.date"
+                    },
+                    hasUserDetails: 1,
+                    hasDoctorDetails: 1,
+                    hasLastMessageDetails: 1
+                }                                                                                                                                                                                        
+            }                                                                                                                                                                                            
+        ];                                                                                                                                                                                               
+
+        console.log('Aggregation Pipeline:', JSON.stringify(aggregationPipeline, null, 2));                                                                                                              
+        logger.log(level.debug, `Aggregation Pipeline: ${JSON.stringify(aggregationPipeline, null, 2)}`);                                                                                                
+
+        // Execute the aggregation pipeline                                                                                                                                                              
+        const chatLists = await ChatList.aggregate(aggregationPipeline);                                                                                                                                 
+
+        console.log(`Aggregation result count: ${chatLists.length}`);                                                                                                                                    
+        logger.log(level.info, `Aggregation result count: ${chatLists.length}`);                                                                                                                         
+
+        // Log details about lookup results for debugging                                                                                                                                                
+        if (chatLists.length > 0) {                                                                                                                                                                      
+            chatLists.forEach((chat, index) => {                                                                                                                                                         
+                console.log(`Chat ${index + 1}: ${JSON.stringify(chat, null, 2)}`);                                                                                                                      
+                logger.log(level.debug, `Chat ${index + 1}: ${JSON.stringify(chat, null, 2)}`);                                                                                                          
+            });                                                                                                                                                                                          
+        } else {                                                                                                                                                                                         
+            console.log('No chat lists found for the user');                                                                                                                                             
+            logger.log(level.info, 'No chat lists found for the user');                                                                                                                                  
+        }                                                                                                                                                                                                
+
+        return res.status(200).json({                                                                                                                                                                    
+            success: true,                                                                                                                                                                               
+            data: chatLists,                                                                                                                                                                             
+            message: "Chat list fetched successfully!",
+        });
+
+    } catch (error) {
+        console.error(`getChatList Error: ${error.message}`);
+        logger.log(level.error, `getChatList Error: ${error.message}`);
+        return res.status(500).json({ code: 500, message: error.message });
+    }                                                                                                                                                                                                    
+};
+
 export async function login(req, res) {
     try {
         const { email, password } = req.body;
