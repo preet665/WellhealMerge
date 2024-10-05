@@ -14,158 +14,12 @@ import { logger, level } from '../config/logger.js';
 import CallReviewRating from '../models/call_review_rating.model.js';
 import Call from '../models/call.model.js';
 import Razorpay from 'razorpay';
+import { USER_ROLE, ROLE_MAPPING } from '../shared/constant/types.const.js';
 // Doctor login
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
-export const getChatList = async (req, res) => {
-    try {
-        console.log('getChatList called');
-        logger.log(level.info, 'getChatList called');
-
-        // Check for authenticated user
-        if (!req.userdata || !req.userdata._id) {
-            console.log('Unauthorized access: Missing userdata');
-            logger.log(level.warn, 'Unauthorized access: Missing userdata');
-            return res.status(401).json({ success: false, message: 'Unauthorized access' });
-        }
-
-        const userId = req.userdata._id;                                                                                                                                                                 
-        console.log(`Fetching chat list for userId: ${userId}`);                                                                                                                                         
-        logger.log(level.info, `Fetching chat list for userId: ${userId}`);                                                                                                                              
-
-        // Validate userId format                                                                                                                                                                        
-        if (!mongoose.Types.ObjectId.isValid(userId)) {                                                                                                                                                  
-            console.log(`Invalid userId format: ${userId}`);                                                                                                                                             
-            logger.log(level.error, `Invalid userId format: ${userId}`);                                                                                                                                 
-            return res.status(400).json({ success: false, message: 'Invalid userId format' });                                                                                                           
-        }                                                                                                                                                                                                
-
-        const userObjectId = new mongoose.Types.ObjectId(userId);                                                                                                                                        
-
-        // Revised Aggregation Pipeline with Correct Enum Values and Removed $isObjectId                                                                                                                 
-        const aggregationPipeline = [                                                                                                                                                                    
-            { $match: { userId: userObjectId } },                                                                                                                                                        
-            { $unwind: "$list" }, 
-            {                                                                                                                                                                                            
-                $addFields: {                                                                                                                                                                            
-                    receiverRoleLower: { $toLower: "$list.receiverRole" }
-                }                                                                                                                                                                                        
-            },                                                                                                                                                                                           
-            {                                                                                                                                                                                            
-                $lookup: {                                                                                                                                                                               
-                    from: "users", // Ensure this matches your actual collection name                                                                                                                    
-                    localField: "list.userId",                                                                                                                                                           
-                    foreignField: "_id",
-                    as: "userDetails"
-                }
-            },                                                                                                                                                                                           
-            {                                                                                                                                                                                            
-                $lookup: {                                                                                                                                                                               
-                    from: "doctors", // Ensure this matches your actual collection name                                                                                                                  
-                    localField: "list.userId",                                                                                                                                                           
-                    foreignField: "_id",                                                                                                                                                                 
-                    as: "doctorDetails"                                                                                                                                                                  
-                }
-            },
-            {                                                                                                                                                                                            
-                $lookup: {                                                                                                                                                                               
-                    from: "messages", // Ensure this matches your actual collection name                                                                                                                 
-                    localField: "list.lastMessage",                                                                                                                                                      
-                    foreignField: "_id",                                                                                                                                                                 
-                    as: "lastMessageDetails"
-                }
-            },
-            {
-                $addFields: {
-                    hasUserDetails: { $gt: [{ $size: "$userDetails" }, 0] },
-                    hasDoctorDetails: { $gt: [{ $size: "$doctorDetails" }, 0] },
-                    hasLastMessageDetails: { $gt: [{ $size: "$lastMessageDetails" }, 0] }
-                }
-            },
-            {
-                $group: {
-                    _id: "$list.roomId",
-                    chatListId: { $first: "$_id" },
-                    userDetails: {                                                                                                                                                                       
-                        $first: {
-                            $cond: [                                                                                                                                                                     
-                                { $eq: ["$receiverRoleLower", "user"] },                                                                                                                                 
-                                { $arrayElemAt: ["$userDetails", 0] },                                                                                                                                   
-                                { $arrayElemAt: ["$doctorDetails", 0] }                                                                                                                                  
-                            ]                                                                                                                                                                            
-                        }                                                                                                                                                                                
-                    },
-                    lastMessage: { $first: { $arrayElemAt: ["$lastMessageDetails", 0] } },                                                                                                               
-                    hasUserDetails: { $first: "$hasUserDetails" },                                                                                                                                       
-                    hasDoctorDetails: { $first: "$hasDoctorDetails" },                                                                                                                                   
-                    hasLastMessageDetails: { $first: "$hasLastMessageDetails" }                                                                                                                          
-                }                                                                                                                                                                                        
-            },                                                                                                                                                                                           
-            {                                                                                                                                                                                            
-                $project: {                                                                                                                                                                              
-                    _id: "$chatListId",                                                                                                                                                                  
-                    roomId: "$_id",                                                                                                                                                                      
-                    userDetails: {                                                                                                                                                                       
-                        fullName: {                                                                                                                                                                      
-                            $cond: [                                                                                                                                                                     
-                                { $eq: ["$receiverRoleLower", "user"] },                                                                                                                                 
-                                "$userDetails.name",                                                                                                                                                     
-                                {                                                                                                                                                                        
-                                    $concat: [                                                                                                                                                           
-                                        "$userDetails.firstName",                                                                                                                                        
-                                        " ",
-                                        "$userDetails.lastName"
-                                    ]
-                                }
-                            ]
-                        },
-                        profileImage: "$userDetails.profileImage"
-                    },
-                    lastMessage: {
-                        message: "$lastMessage.message",
-                        date: "$lastMessage.date"
-                    },
-                    hasUserDetails: 1,
-                    hasDoctorDetails: 1,
-                    hasLastMessageDetails: 1
-                }                                                                                                                                                                                        
-            }                                                                                                                                                                                            
-        ];                                                                                                                                                                                               
-
-        console.log('Aggregation Pipeline:', JSON.stringify(aggregationPipeline, null, 2));                                                                                                              
-        logger.log(level.debug, `Aggregation Pipeline: ${JSON.stringify(aggregationPipeline, null, 2)}`);                                                                                                
-
-        // Execute the aggregation pipeline                                                                                                                                                              
-        const chatLists = await ChatList.aggregate(aggregationPipeline);                                                                                                                                 
-
-        console.log(`Aggregation result count: ${chatLists.length}`);                                                                                                                                    
-        logger.log(level.info, `Aggregation result count: ${chatLists.length}`);                                                                                                                         
-
-        // Log details about lookup results for debugging                                                                                                                                                
-        if (chatLists.length > 0) {                                                                                                                                                                      
-            chatLists.forEach((chat, index) => {                                                                                                                                                         
-                console.log(`Chat ${index + 1}: ${JSON.stringify(chat, null, 2)}`);                                                                                                                      
-                logger.log(level.debug, `Chat ${index + 1}: ${JSON.stringify(chat, null, 2)}`);                                                                                                          
-            });                                                                                                                                                                                          
-        } else {                                                                                                                                                                                         
-            console.log('No chat lists found for the user');                                                                                                                                             
-            logger.log(level.info, 'No chat lists found for the user');                                                                                                                                  
-        }                                                                                                                                                                                                
-
-        return res.status(200).json({                                                                                                                                                                    
-            success: true,                                                                                                                                                                               
-            data: chatLists,                                                                                                                                                                             
-            message: "Chat list fetched successfully!",
-        });
-
-    } catch (error) {
-        console.error(`getChatList Error: ${error.message}`);
-        logger.log(level.error, `getChatList Error: ${error.message}`);
-        return res.status(500).json({ code: 500, message: error.message });
-    }                                                                                                                                                                                                    
-};
 
 export async function login(req, res) {
     try {
@@ -221,9 +75,13 @@ export async function login(req, res) {
 export async function getTransactionHistory(req, res) {
     try {
         const { doctorId, count, page = 1, limit = 10 } = req.body; // Extracting doctorId, count, page, and limit from request body
-
+        
+        // Debug: Log input values
+        console.log("Input Values:", { doctorId, count, page, limit });
+        
         // Validate presence of doctorId
         if (!doctorId) {
+            console.log("Doctor ID is missing in the request.");
             return res.status(400).json({
                 success: false,
                 message: "Doctor ID is required.",
@@ -232,6 +90,7 @@ export async function getTransactionHistory(req, res) {
 
         // Validate doctorId format if using MongoDB ObjectId
         if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+            console.log("Invalid Doctor ID format:", doctorId);
             return res.status(400).json({
                 success: false,
                 message: "Invalid Doctor ID format.",
@@ -240,6 +99,7 @@ export async function getTransactionHistory(req, res) {
 
         // Validate page and limit values
         if (!Number.isInteger(page) || page <= 0) {
+            console.log("Invalid Page value:", page);
             return res.status(400).json({
                 success: false,
                 message: "Page must be a positive integer.",
@@ -247,6 +107,7 @@ export async function getTransactionHistory(req, res) {
         }
 
         if (!Number.isInteger(limit) || limit <= 0) {
+            console.log("Invalid Limit value:", limit);
             return res.status(400).json({
                 success: false,
                 message: "Limit must be a positive integer.",
@@ -255,6 +116,7 @@ export async function getTransactionHistory(req, res) {
 
         // Validate count if provided
         if (count !== undefined && (!Number.isInteger(count) || count <= 0)) {
+            console.log("Invalid Count value:", count);
             return res.status(400).json({
                 success: false,
                 message: "Count must be a positive integer.",
@@ -264,6 +126,9 @@ export async function getTransactionHistory(req, res) {
         // Set default count if not provided
         const transactionCount = count || limit;
 
+        // Debug: Log options for Razorpay API
+        console.log("Razorpay Options:", { transactionCount, page, limit });
+
         // Fetch transactions from Razorpay with dynamic count and pagination
         const options = {
             count: transactionCount,
@@ -272,10 +137,20 @@ export async function getTransactionHistory(req, res) {
 
         const transactions = await razorpay.payments.all(options);
 
+        // Debug: Log all transactions received from Razorpay
+        console.log("All Transactions from Razorpay:", JSON.stringify(transactions, null, 2));
+
         // Filter transactions related to the doctorId
         const doctorTransactions = transactions.items.filter(payment => {
-            return payment.notes && payment.notes.doctorId === doctorId;
+            // Debug: Log each payment's doctorId (if exists)
+            const paymentDoctorId = payment.description;
+            console.log(`Checking payment for doctorId: ${paymentDoctorId} against ${doctorId}`);
+            
+            return payment.description === doctorId;
         });
+
+        // Debug: Log filtered transactions for the doctor
+        console.log("Filtered Transactions for Doctor:", JSON.stringify(doctorTransactions, null, 2));
 
         return res.status(200).json({
             success: true,
@@ -1273,3 +1148,231 @@ export async function logout(req, res) {
         return res.status(500).json({ code: 500, message: error.message });
     }
 }
+export const getChatList = async (req, res) => {
+  try {
+    console.log('getChatList called');
+    logger.log(level.info, 'getChatList called');
+
+    // Check for authenticated user
+    if (!req.userdata || !req.userdata._id) {
+      console.log('Unauthorized access: Missing userdata');
+      logger.log(level.warn, 'Unauthorized access: Missing userdata');
+      return res.status(401).json({ success: false, message: 'Unauthorized access' });
+    }
+
+    const userId = req.userdata._id;
+    console.log(`Fetching chat list for userId: ${userId}`);
+    logger.log(level.info, `Fetching chat list for userId: ${userId}`);
+
+    // Validate userId format
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.log(`Invalid userId format: ${userId}`);
+      logger.log(level.error, `Invalid userId format: ${userId}`);
+      return res.status(400).json({ success: false, message: 'Invalid userId format' });
+    }
+
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    // Debug: Check ChatList documents for the user
+    const chatListDocuments = await ChatList.find({ userId: userObjectId }).lean();
+    console.log('ChatList Documents:', chatListDocuments);
+
+    // Aggregation Pipeline with additional debugging
+    let pipelineResult = await ChatList.aggregate([{ $match: { userId: userObjectId } }]).exec();
+    console.log('After $match:', pipelineResult);
+
+    pipelineResult = await ChatList.aggregate([
+      { $match: { userId: userObjectId } },
+      { $unwind: "$list" } // Update to use 'list' field
+    ]).exec();
+    console.log('After $unwind:', pipelineResult);
+
+    pipelineResult = await ChatList.aggregate([
+      { $match: { userId: userObjectId } },
+      { $unwind: "$list" },
+      {
+        $lookup: {
+          from: "users",
+          localField: "list.participantId",
+          foreignField: "_id",
+          as: "userDetails"
+        }
+      }
+    ]).exec();
+    console.log('After $lookup users:', pipelineResult);
+
+    pipelineResult = await ChatList.aggregate([
+      { $match: { userId: userObjectId } },
+      { $unwind: "$list" },
+      {
+        $lookup: {
+          from: "users",
+          localField: "list.participantId",
+          foreignField: "_id",
+          as: "userDetails"
+        }
+      },
+      {
+        $lookup: {
+          from: "doctors",
+          localField: "list.participantId",
+          foreignField: "_id",
+          as: "doctorDetails"
+        }
+      }
+    ]).exec();
+    console.log('After $lookup doctors:', pipelineResult);
+
+    pipelineResult = await ChatList.aggregate([
+      { $match: { userId: userObjectId } },
+      { $unwind: "$list" },
+      {
+        $lookup: {
+          from: "users",
+          localField: "list.participantId",
+          foreignField: "_id",
+          as: "userDetails"
+        }
+      },
+      {
+        $lookup: {
+          from: "doctors",
+          localField: "list.participantId",
+          foreignField: "_id",
+          as: "doctorDetails"
+        }
+      },
+      {
+        $lookup: {
+          from: "messages",
+          localField: "list.lastMessageId",
+          foreignField: "_id",
+          as: "lastMessageDetails"
+        }
+      }
+    ]).exec();
+    console.log('After $lookup messages:', pipelineResult);
+
+    // Execute the full aggregation pipeline
+    const aggregationPipeline = [
+      { $match: { userId: userObjectId } },
+      { $unwind: "$list" },
+      {
+        $lookup: {
+          from: "users",
+          localField: "list.participantId",
+          foreignField: "_id",
+          as: "userDetails"
+        }
+      },
+      {
+        $lookup: {
+          from: "doctors",
+          localField: "list.participantId",
+          foreignField: "_id",
+          as: "doctorDetails"
+        }
+      },
+      {
+        $lookup: {
+          from: "messages",
+          localField: "list.lastMessageId",
+          foreignField: "_id",
+          as: "lastMessageDetails"
+        }
+      },
+      {
+        $addFields: {
+          userDetailsCount: { $size: "$userDetails" },
+          doctorDetailsCount: { $size: "$doctorDetails" },
+          lastMessageDetailsCount: { $size: "$lastMessageDetails" }
+        }
+      },
+      {
+        $addFields: {
+          participantRole: {
+            $cond: [
+              { $gt: ["$userDetailsCount", 0] },
+              "User",
+              "Doctor"
+            ]
+          },
+          participantInfo: {
+            $cond: [
+              { $gt: ["$userDetailsCount", 0] },
+              { $arrayElemAt: ["$userDetails", 0] },
+              { $arrayElemAt: ["$doctorDetails", 0] }
+            ]
+          },
+          lastMessage: {
+            $cond: [
+              { $gt: ["$lastMessageDetailsCount", 0] },
+              { $arrayElemAt: ["$lastMessageDetails", 0] },
+              null
+            ]
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          roomId: "$list.roomId",
+          participantId: "$list.participantId",
+          participantRole: 1,
+          participantInfo: {
+            $cond: [
+              { $eq: ["$participantRole", "User"] },
+              { name: "$participantInfo.name", profileImage: "$participantInfo.profile_image" },
+              { name: { $concat: ["$participantInfo.firstName", " ", "$participantInfo.lastName"] }, profileImage: "$participantInfo.profileImage" }
+            ]
+          },
+          lastMessage: {
+            $cond: [
+              { $gt: ["$lastMessageDetailsCount", 0] },
+              { message: "$lastMessage.message", date: "$lastMessage.date" },
+              { message: "No messages", date: null }
+            ]
+          },
+          userDetailsCount: 1,
+          doctorDetailsCount: 1,
+          lastMessageDetailsCount: 1
+        }
+      },
+      {
+        $sort: { "lastMessage.date": -1 }
+      }
+    ];
+
+    console.log('Aggregation Pipeline:', JSON.stringify(aggregationPipeline, null, 2));
+    logger.log(level.debug, `Aggregation Pipeline: ${JSON.stringify(aggregationPipeline, null, 2)}`);
+
+    // Execute the aggregation pipeline
+    const chatLists = await ChatList.aggregate(aggregationPipeline).exec();
+
+    console.log(`Aggregation result count: ${chatLists.length}`);
+    logger.log(level.info, `Aggregation result count: ${chatLists.length}`);
+
+    // Log details about each chat for debugging
+    if (chatLists.length > 0) {
+      chatLists.forEach((chat, index) => {
+        console.log(`Chat ${index + 1}:`);
+        console.log(JSON.stringify(chat, null, 2));
+        logger.log(level.debug, `Chat ${index + 1}: ${JSON.stringify(chat, null, 2)}`);
+      });
+    } else {
+      console.log('No chat lists found for the user');
+      logger.log(level.info, 'No chat lists found for the user');
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: chatLists,
+      message: "Chat list fetched successfully!",
+    });
+
+  } catch (error) {
+    console.error(`getChatList Error: ${error.message}`);
+    logger.log(level.error, `getChatList Error: ${error.message}`);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

@@ -2,8 +2,10 @@
 
 import mongoose from 'mongoose';
 import Message from '../models/message.model.js';
-import Doctor from '../models/doctor.model.js';
 import User from '../models/user.model.js';
+import Doctor from '../models/doctor.model.js';
+import Room from '../models/room.model.js';
+import ChatList from '../models/chatlist.model.js';
 import AWS from 'aws-sdk';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
@@ -31,7 +33,11 @@ const upload = multer({
   }),
 });
 
-// Add this method in your message controller
+/**
+ * Controller to handle file uploads to AWS S3.
+ * @param {Object} req - The request object containing the file.
+ * @param {Object} res - The response object to send back the file URL.
+ */
 export const uploadFileToS3 = (req, res) => {
   upload.single('file')(req, res, (error) => {
     if (error) {
@@ -48,30 +54,23 @@ export const uploadFileToS3 = (req, res) => {
     });
   });
 };
-/**
- * Utility function to generate a unique roomId based on senderId and receiverId.
- * @param {String} senderId - The ID of the sender.
- * @param {String} receiverId - The ID of the receiver.
- * @returns {String} - The generated roomId.
- */
-const generateRoomId = (senderId, receiverId) => {
-        let value = [senderId, receiverId];
-        value.sort((a, b) => b.localeCompare(a));
-        let roomId = value.join();
-        return roomId
-};
 
 /**
  * Controller to handle sending messages via Socket.IO.
+ * Integrates with Rooms and ChatLists collections.
  * @param {Object} data - The message data containing senderId, receiverId, message, and optional documents.
  * @returns {Object} - The result containing success status and message data.
  */
 export const sendMessage = async (data) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { senderId, receiverId, message, documents } = data;
 
         // Validate input
         if (!senderId || !receiverId || !message) {
+            await session.abortTransaction();
+            session.endSession();
             return {
                 success: false,
                 message: "senderId, receiverId, and message are required.",
@@ -80,22 +79,26 @@ export const sendMessage = async (data) => {
 
         // Validate senderId and receiverId format
         if (!mongoose.Types.ObjectId.isValid(senderId) || !mongoose.Types.ObjectId.isValid(receiverId)) {
+            await session.abortTransaction();
+            session.endSession();
             return {
                 success: false,
                 message: "Invalid senderId or receiverId format.",
             };
         }
 
-        // Verify that the sender exists
-        const senderUser = await User.findById(senderId).lean();
+        // Verify that the sender exists and get their role
+        const senderUser = await User.findById(senderId).session(session).lean();
         let senderRole;
         if (senderUser) {
-            senderRole = "Users";
+            senderRole = "User";
         } else {
-            const senderDoctor = await Doctor.findById(senderId).lean();
+            const senderDoctor = await Doctor.findById(senderId).session(session).lean();
             if (senderDoctor) {
                 senderRole = "Doctor";
             } else {
+                await session.abortTransaction();
+                session.endSession();
                 return {
                     success: false,
                     message: "Sender not found.",
@@ -103,16 +106,18 @@ export const sendMessage = async (data) => {
             }
         }
 
-        // Verify that the receiver exists
-        const receiverUser = await User.findById(receiverId).lean();
+        // Verify that the receiver exists and get their role
+        const receiverUser = await User.findById(receiverId).session(session).lean();
         let receiverRole;
         if (receiverUser) {
-            receiverRole = "Users";
+            receiverRole = "User";
         } else {
-            const receiverDoctor = await Doctor.findById(receiverId).lean();
+            const receiverDoctor = await Doctor.findById(receiverId).session(session).lean();
             if (receiverDoctor) {
                 receiverRole = "Doctor";
             } else {
+                await session.abortTransaction();
+                session.endSession();
                 return {
                     success: false,
                     message: "Receiver not found.",
@@ -120,24 +125,91 @@ export const sendMessage = async (data) => {
             }
         }
 
-        // Generate roomId
-        const roomId = generateRoomId(senderId.toString(), receiverId.toString());
+        // Ensure that sender and receiver roles are either "User" or "Doctor"
+        const validRoles = ["User", "Doctor"];
+        if (!validRoles.includes(senderRole) || !validRoles.includes(receiverRole)) {
+            await session.abortTransaction();
+            session.endSession();
+            return {
+                success: false,
+                message: "Invalid senderRole or receiverRole.",
+            };
+        }
+
+        // Find or create a room for the conversation between sender and receiver
+        const participants = [
+            { userId: mongoose.Types.ObjectId(senderId), role: senderRole },
+            { userId: mongoose.Types.ObjectId(receiverId), role: receiverRole }
+        ];
+
+        let room = await Room.findOne({
+            participants: {
+                $all: participants.map(p => ({
+                    userId: p.userId,
+                    role: p.role
+                })),
+                $size: participants.length
+            }
+        }).session(session);
+
+        if (!room) {
+            room = await Room.create([{ participants }], { session });
+            room = room[0]; // Since create with array returns an array
+        }
 
         // Create new message
         const newMessage = new Message({
             senderId,
             receiverId,
-            roomId,
+            roomId: room._id,
             message,
             documents: documents || [],
-            date: new Date().toISOString(),
+            date: new Date(),
             senderRole,
             receiverRole,
             isRead: false,
         });
 
         // Save message to database
-        await newMessage.save();
+        await newMessage.save({ session });
+
+        // Update ChatList for Sender
+        await ChatList.findOneAndUpdate(
+            { userId: senderId, role: senderRole },
+            {
+                $set: {
+                    "chats.$[elem].lastMessageId": newMessage._id,
+                    "chats.$[elem].updatedAt": new Date(),
+                }
+            },
+            {
+                arrayFilters: [{ "elem.roomId": room._id }],
+                new: true,
+                upsert: true,
+                session
+            }
+        );
+
+        // Update ChatList for Receiver
+        await ChatList.findOneAndUpdate(
+            { userId: receiverId, role: receiverRole },
+            {
+                $set: {
+                    "chats.$[elem].lastMessageId": newMessage._id,
+                    "chats.$[elem].updatedAt": new Date(),
+                }
+            },
+            {
+                arrayFilters: [{ "elem.roomId": room._id }],
+                new: true,
+                upsert: true,
+                session
+            }
+        );
+
+        // Commit the transaction
+        await session.commitTransaction();
+        session.endSession();
 
         return {
             success: true,
@@ -145,6 +217,9 @@ export const sendMessage = async (data) => {
         };
 
     } catch (error) {
+        // Abort the transaction on error
+        await session.abortTransaction();
+        session.endSession();
         console.error("Error in sendMessage controller:", error);
         return {
             success: false,
@@ -155,11 +230,13 @@ export const sendMessage = async (data) => {
 
 /**
  * Controller to retrieve messages for a specific roomId via Socket.IO.
- * @param {String} roomId - The unique room identifier.
+ * @param {String} roomId - The unique room identifier (ObjectId as string).
  * @param {String} userId - The ID of the user requesting the messages.
+ * @param {Number} page - The page number for pagination (optional).
+ * @param {Number} limit - The number of messages per page (optional).
  * @returns {Object} - The result containing success status and messages data.
  */
-export const getMessages = async (roomId, userId) => {
+export const getMessages = async (roomId, userId, page = 1, limit = 50) => {
     try {
         // Validate roomId and userId
         if (!roomId || !userId) {
@@ -169,29 +246,72 @@ export const getMessages = async (roomId, userId) => {
             };
         }
 
-        // Validate roomId format
-        const ids = roomId.split('_');
-        if (ids.length !== 2 || !mongoose.Types.ObjectId.isValid(ids[0]) || !mongoose.Types.ObjectId.isValid(ids[1])) {
+        // Validate roomId and userId format
+        if (!mongoose.Types.ObjectId.isValid(roomId) || !mongoose.Types.ObjectId.isValid(userId)) {
             return {
                 success: false,
-                message: "Invalid roomId format.",
+                message: "Invalid roomId or userId format.",
             };
         }
 
-        // Ensure that the requesting user is part of the room
-        if (userId !== ids[0] && userId !== ids[1]) {
+        // Fetch the room to verify participants
+        const room = await Room.findById(roomId).lean();
+        if (!room) {
+            return {
+                success: false,
+                message: "Room not found.",
+            };
+        }
+
+        // Check if the requesting user is part of the room
+        const isParticipant = room.participants.some(participant => participant.userId.toString() === userId);
+        if (!isParticipant) {
             return {
                 success: false,
                 message: "You are not authorized to view messages in this room.",
             };
         }
 
-        // Fetch messages sorted by creation time
-        const messages = await Message.find({ roomId })
-            .populate('senderId', 'name profile_image') // Populate sender details
-            .populate('receiverId', 'name profile_image') // Populate receiver details
+        // Fetch messages with pagination
+        let messages = await Message.find({ roomId })
             .sort({ createdAt: 1 }) // Sort messages in ascending order
+            .skip((page - 1) * limit)
+            .limit(limit)
             .lean();
+
+        // Collect unique senderIds and receiverIds
+        const senderIds = [...new Set(messages.map(msg => msg.senderId.toString()))];
+        const receiverIds = [...new Set(messages.map(msg => msg.receiverId.toString()))];
+
+        // Fetch users and doctors in batches
+        const users = await User.find({ _id: { $in: senderIds.concat(receiverIds) } }).select('name profile_image role').lean();
+        const doctors = await Doctor.find({ _id: { $in: senderIds.concat(receiverIds) } }).select('firstName lastName profileImage role').lean();
+
+        // Create a mapping from userId to user details
+        const userMap = {};
+        users.forEach(user => {
+            userMap[user._id.toString()] = {
+                name: user.name,
+                profile_image: user.profile_image,
+                role: user.role
+            };
+        });
+
+        // Add doctors to the mapping
+        doctors.forEach(doctor => {
+            userMap[doctor._id.toString()] = {
+                name: `${doctor.firstName} ${doctor.lastName}`,
+                profile_image: doctor.profileImage,
+                role: doctor.role
+            };
+        });
+
+        // Populate sender and receiver details in messages
+        messages = messages.map(msg => ({
+            ...msg,
+            sender: userMap[msg.senderId.toString()] || null,
+            receiver: userMap[msg.receiverId.toString()] || null,
+        }));
 
         return {
             success: true,

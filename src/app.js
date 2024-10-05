@@ -1,5 +1,4 @@
 // src/app.js
-
 import express from 'express';
 import cron from 'node-cron';
 import './config/database.js';
@@ -28,6 +27,7 @@ import UserSocket from './models/UserSocket.js';
 import Call from './models/call.model.js';
 import { generateAgoraToken } from './shared/services/agoraToken.service.js';
 import mongoose from 'mongoose';
+import { TYPES, USER_ROLE, ROLE_MAPPING } from './shared/constant/types.const.js'; // Import TYPES and USER_ROLE
 
 // Resolve the directory name
 const __dirname = path.resolve();
@@ -59,6 +59,9 @@ console.log('Socket.IO server initialized');
 const onlineUsers = {}; // { userId: Set(socketId) }
 const activeCalls = {};  // { roomId: callId }
 
+// Helper function to map role numbers to role strings
+const getRoleString = (roleNumber) => ROLE_MAPPING[roleNumber] || "unknown";
+
 // Utility function to generate a unique roomId based on senderId and receiverId
 const generateRoomId = (senderId, receiverId) => {
   const sortedIds = [senderId, receiverId].sort(); // Lexicographical sort
@@ -74,9 +77,16 @@ io.on('connection', (socket) => {
     try {
       const { roomId, userId, userRole } = data;
 
-      if (!roomId || !userId || !userRole) {
+      if (!roomId || !userId || userRole === undefined) {
         return socket.emit('joinRoomError', { success: false, message: "roomId, userId, and userRole are required to join a room." });
       }
+
+      // Validate userRole
+      if (!Object.values(USER_ROLE).includes(userRole)) {
+        return socket.emit('joinRoomError', { success: false, message: "Invalid userRole provided." });
+      }
+
+      const userRoleString = getRoleString(userRole);
 
       // Join the specified room
       socket.join(roomId);
@@ -88,7 +98,7 @@ io.on('connection', (socket) => {
       } else {
         onlineUsers[userId] = new Set([socket.id]);
         // Notify others that this user is now online
-        io.emit('userOnline', { userId, userRole });
+        io.emit('userOnline', { userId, userRole: userRoleString });
       }
 
       // Optionally, fetch and send existing messages in the room
@@ -116,7 +126,17 @@ io.on('connection', (socket) => {
       if (result.success) {
         const roomId = result.data.roomId;
         // Emit 'newMessage' to the specific room
-        io.to(roomId).emit('newMessage', result.data);
+        io.to(roomId).emit('newMessage', {
+          message: result.data.message,
+          senderId: result.data.senderId,
+          receiverId: result.data.receiverId,
+          roomId: roomId,
+          documents: result.data.documents,
+          date: result.data.date,
+          senderRole: getRoleString(result.data.senderRole),
+          receiverRole: getRoleString(result.data.receiverRole),
+          isRead: result.data.isRead,
+        });
         socket.emit('sendMessageSuccess', { success: true, message: 'Message sent successfully!' });
         console.log(`Message broadcasted to room ${roomId}.`);
       } else {
@@ -125,6 +145,31 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error sending message:', error);
       socket.emit('sendMessageError', { success: false, message: 'Failed to send message' });
+    }
+  });
+
+  // Handle 'endChat' event
+  socket.on('endChat', async (data) => {
+    try {
+      const { roomId, userId } = data;
+
+      if (!roomId || !userId) {
+        return socket.emit('endChatError', { success: false, message: 'roomId and userId are required to end a chat.' });
+      }
+
+      // Update the chat status in the database
+      const result = await updateChatStatus(roomId, userId, 'Ended'); // Ensure updateChatStatus is properly defined
+
+      if (result.success) {
+        // Emit 'endChat' event to the room
+        io.to(roomId).emit('endChat', { roomId, userId });
+        socket.emit('endChatSuccess', { success: true, message: 'Chat ended successfully.' });
+      } else {
+        socket.emit('endChatError', { success: false, message: result.message });
+      }
+    } catch (error) {
+      console.error('Error ending chat:', error);
+      socket.emit('endChatError', { success: false, message: 'Failed to end chat.' });
     }
   });
 
@@ -244,21 +289,24 @@ io.on('connection', (socket) => {
 
   /**
    * Handle 'getMessages' event.
-   * Client emits this event with { roomId, userId } to receive the last 10 messages.
+   * Client emits this event with { roomId, userId } to receive messages with pagination.
    */
   socket.on('getMessages', async (data) => {
     try {
-      const { roomId, userId } = data;
+      const { roomId, userId, page, limit } = data;
 
       if (!roomId || !userId) {
         return socket.emit('getMessagesError', { success: false, message: "roomId and userId are required." });
       }
 
-      // Fetch the last 10 messages
-      const messagesResult = await getMessages(roomId, userId, 10);
+      // Set default pagination values if not provided
+      const pageNumber = page && Number.isInteger(page) && page > 0 ? page : 1;
+      const limitNumber = limit && Number.isInteger(limit) && limit > 0 ? limit : 50;
+
+      // Fetch the last 'limitNumber' messages
+      const messagesResult = await getMessages(roomId, userId, pageNumber, limitNumber);
 
       if (messagesResult.success) {
-        // Send the messages back to the requesting client
         socket.emit('getMessagesSuccess', { success: true, messages: messagesResult.data });
       } else {
         socket.emit('getMessagesError', { success: false, message: messagesResult.message });
@@ -266,7 +314,7 @@ io.on('connection', (socket) => {
 
     } catch (error) {
       console.error("Error in getMessages event:", error);
-      socket.emit('getMessagesError', { success: false, message: "Failed to fetch last 10 chats." });
+      socket.emit('getMessagesError', { success: false, message: "Failed to fetch messages." });
     }
   });
 
@@ -276,14 +324,27 @@ io.on('connection', (socket) => {
 
     // Find the userId associated with this socket.id
     let userIdToRemove = null;
+    let userRoleToRemove = null;
     for (const [userId, socketSet] of Object.entries(onlineUsers)) {
       if (socketSet.has(socket.id)) {
         socketSet.delete(socket.id);
         userIdToRemove = userId;
+        // Assuming you have a way to get the role based on userId, e.g., querying the database
+        // For simplicity, let's assume role is fetched here
+        const user = await mongoose.model('User').findById(userId).lean();
+        if (user) {
+          userRoleToRemove = getRoleString(user.role);
+        } else {
+          const doctor = await mongoose.model('Doctor').findById(userId).lean();
+          if (doctor) {
+            userRoleToRemove = getRoleString(USER_ROLE.DOCTOR); // Assuming USER_ROLE.DOCTOR = 1
+          }
+        }
+
         if (socketSet.size === 0) {
           delete onlineUsers[userId];
           // Notify others that this user is now offline
-          io.emit('userOffline', { userId });
+          io.emit('userOffline', { userId, userRole: userRoleToRemove });
         }
         break;
       }

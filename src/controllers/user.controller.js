@@ -358,11 +358,30 @@ export const bookAppointment = async (req, res) => {
             { new: true }
         ).lean();
 
-        return res.status(200).json({
-            success: true,
-            data: saveAppointment,
-            message: "Appointment booked successfully!",
-        });
+	const doctor = await Doctor.findById(doctorId).lean();
+	    const response = {
+	      success: true,
+	      data: {
+	        appointment: saveAppointment,
+	        doctor: {
+	          _id: doctor._id,
+	          email: doctor.email,
+	          contactNumber: doctor.contactNumber,
+	          firstName: doctor.firstName,
+	          lastName: doctor.lastName,
+	          about: doctor.about,
+	          destination: doctor.destination,
+	          experience: doctor.experience,
+	          profileImage: doctor.profileImage,
+	          rating: doctor.rating,
+	          review: doctor.review,
+	          totalPatients: doctor.totalPatients,
+	        },
+	      },
+	      message: "Appointment booked successfully!",
+	    };
+
+	    return res.status(200).json(response);
     } catch (error) {
         console.error("bookAppointment Error: ", error); // Log the full error
         return res.status(500).json({ code: 500, message: error.message });
