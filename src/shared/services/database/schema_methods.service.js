@@ -58,14 +58,16 @@ export function SchemaMethods(model) {
     }
   };
 
-  model.updateMany = async function(filter, updatedField) {
+model.updateMany = async function(filter, updatedField) {
     try {
-      return await DBOperation.updateMany(this, filter, updatedField);
-    } catch (err) {
-      logger.log(level.error, err);
-      throw err;
+        // Call MongoDB's native `updateMany` method instead of recursively calling the same function
+        const result = await this.collection.updateMany(filter, { $set: updatedField });
+        return result;
+    } catch (error) {
+        console.error("Error in updateMany:", error);
+        throw error;
     }
-  };
+};
 
   model.delete = async function(filter) {
     try {

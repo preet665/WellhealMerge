@@ -18,8 +18,15 @@ const CURRENT_USER = "currentUser";
 const CURRENT_USER_ID = "currentUserId";
 const CURRENT_DOCTOR = "currentDoctor";
 const CURRENT_DOCTOR_ID = "currentDoctorId";
+const ROLE="currentRole";
 const SKIP_AUTH_FOR = [];
-
+const setUserData = (req, decoded) => {
+    req.userdata = {
+        _id: decoded.userId,
+        email: decoded.email,
+        role: decoded.role
+    };
+};
 export const adminAuthMiddleware = async (req, res, next) => {
     console.log("adminAuthMiddleware invoked");
     console.log("Request method:", req.method);
@@ -49,9 +56,10 @@ export const adminAuthMiddleware = async (req, res, next) => {
 
                 const email = decoded.email;
                 const userId = decoded.userId;
+		const role = decoded.role;
                 console.log("Decoded email:", email);
                 console.log("Decoded userId:", userId);
-
+		console.log("Decoded role:", role);
                 const user = await User.findOne({ _id: userId, token: accessToken }).lean();
                 console.log("User found in DB:", user);
 
@@ -64,6 +72,7 @@ export const adminAuthMiddleware = async (req, res, next) => {
 
                 req[CURRENT_USER] = email;
                 req[CURRENT_USER_ID] = userId;
+		req[ROLE] = role;
                 next();
                 return;
             } catch (e) {
@@ -149,7 +158,7 @@ export const authMiddleware = async (req, res, next) => {
                 const userId = decoded.userId;
                 console.log("Decoded email:", email);
                 console.log("Decoded userId:", userId);
-
+		req.userdata = { _id: decoded.userId, email: decoded.email };
                 const user = await User.findOne({ _id: userId, token: accessToken }).lean();
                 console.log("User found in DB:", user);
 
@@ -159,7 +168,7 @@ export const authMiddleware = async (req, res, next) => {
                     console.log(`Token does not exist in the database for userId: ${userId}`);
                     return unauthorizedError(res, messages.not_exist.replace("{dynamic}", "AccessToken"));
                 }
-
+		setUserData(req, decoded);
                 req[CURRENT_USER] = email;
                 req[CURRENT_USER_ID] = userId;
                 next();

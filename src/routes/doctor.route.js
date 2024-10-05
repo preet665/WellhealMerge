@@ -21,6 +21,8 @@ import {
     appointmentCount,
     getMonthYearWiseAppointment,
     logout,
+    getTransactionHistory,
+    getCallReviewsByDoctor,
 } from '../controllers/doctor.controller.js';
 
 // Import WellHeal's middlewares
@@ -46,13 +48,13 @@ router.get("/getDoctorSlots", doctorAuthMiddleware, getDoctorSlots);
 router.put("/deleteSlot/:id", doctorAuthMiddleware, deleteSlots);
 router.get("/getAllSlots", doctorAuthMiddleware, getAllSlots);
 router.get("/getPatients", doctorAuthMiddleware, getPatients);
-
+router.post("/getTransactionHistory",doctorAuthMiddleware, getTransactionHistory);
 // Appointments
 router.get("/getAppointments", doctorAuthMiddleware, getAppointments);
 router.get("/getSingleAppointment/:id", doctorAuthMiddleware, getSingleAppointment);
 router.get("/appointmentCount", doctorAuthMiddleware, appointmentCount);
 router.get("/getMonthYearWiseAppointment", doctorAuthMiddleware, getMonthYearWiseAppointment);
-
+router.post("/getCallReviewsByDoctor",doctorAuthMiddleware, getCallReviewsByDoctor);
 // Prescription
 router.post("/addPrescription", doctorAuthMiddleware, addPrescription);
 

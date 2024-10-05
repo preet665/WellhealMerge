@@ -1,3 +1,5 @@
+// src/shared/services/jwt_auth/jwt_auth.service.js
+
 import jwt from "jsonwebtoken";
 import { logger, level } from "./../../../config/logger.js";
 import { constants } from "./../../constant/jwt_auth.const.js";
@@ -5,21 +7,22 @@ import { OAuth2Client } from "google-auth-library";
 import { decrypt } from "./../../utils/utility.js";
 
 class JWTAuth {
-  async createToken(email, userId = null) {
+  async createToken(email, userId = null, role = null) { // Added role parameter
     return new Promise((resolve, reject) => {
       // const exp =
       //   Math.floor(Date.now() / 1000) +
       //   60 * 60 * (24 * constants.TOKEN_EXPIRES_IN_DAY); // 1 day
-      console.log("Creating token with email:", email, "and userId:", userId);
+      console.log("Creating token with email:", email, "and userId:", userId, "and role:", role);
       const exp = Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 365); // 365 days
       const payload = {
         email: email,
         userId,
+        role, // Include role in payload
         exp,
       };
       try {
         let secret = process.env.JWT_TOKEN_SECRET;
-        const token = Promise.resolve(jwt.sign(payload, secret));
+        const token = jwt.sign(payload, secret);
         resolve(token);
       } catch (err) {
         reject(err);
@@ -41,7 +44,7 @@ class JWTAuth {
       };
       try {
         let secret = process.env.JWT_ADMIN_TOKEN_SECRET;
-        const token = Promise.resolve(jwt.sign(payload, secret));
+        const token = jwt.sign(payload, secret);
         resolve(token);
       } catch (err) {
         reject(err);
@@ -100,19 +103,21 @@ class JWTAuth {
     }
     return null;
   }
-async verifyDoctorToken(accessToken) {
-    return new Promise((resolve, reject) => {
-        try {
-            let secret = process.env.JWT_TOKEN_SECRET;
-            const decoded = jwt.verify(accessToken, secret);
 
-            // Successfully decoded token, resolve the promise
-            resolve(decoded);
-        } catch (err) {
-            logger.log(level.error, `DoctorToken verification failed: ${err.message}`);
-            reject(err);
-        }
+  async verifyDoctorToken(accessToken) {
+    return new Promise((resolve, reject) => {
+      try {
+        let secret = process.env.JWT_TOKEN_SECRET;
+        const decoded = jwt.verify(accessToken, secret);
+
+        // Successfully decoded token, resolve the promise
+        resolve(decoded);
+      } catch (err) {
+        logger.log(level.error, `DoctorToken verification failed: ${err.message}`);
+        reject(err);
+      }
     });
+  }
 }
-}
+
 export default JWTAuth;

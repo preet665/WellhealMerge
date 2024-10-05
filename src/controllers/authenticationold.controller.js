@@ -39,9 +39,6 @@ import {
   TYPES,
   USER_PRO_STATUS,
   USER_ROLE,
-  ROLE_MAPPING, // Import ROLE_MAPPING
-  ROLES,
-  ROLE_MAP, ROLE_REVERSE_MAP 
 } from '../shared/constant/types.const.js';
 import Path from 'path';
 import {
@@ -56,16 +53,6 @@ import TrialUsers from "../models/trialUser.model.js";
 const { _ } = pkg;
 const auth = new JWTAuth();
 const asset_url = `${APP_CONST.ASSET_URL}`;
-
-// Helper function to map numerical role to string
-function mapRoleNumberToString(roleNumber) {
-  return ROLE_MAP[roleNumber] || 'unknown';
-}
-
-// Helper function to map string role to number
-function mapRoleStringToNumber(roleString) {
-  return ROLE_REVERSE_MAP[roleString] || null;
-}
 
 export const login = async (req, res) => {
   try {
@@ -127,10 +114,8 @@ export const login = async (req, res) => {
         let paymentDoc = await paymentExists(userDoc[0]._id);
         console.log("Payment document found:", paymentDoc);
 
-        // Map numerical role to string
-        const roleString = mapRoleNumberToString(userDoc[0].role);
-
-        await generateToken(res, data.email, userDoc[0], paymentDoc, roleString);
+        // Pass the role correctly
+        await generateToken(res, data.email, userDoc[0], paymentDoc, userDoc[0].role);
         await addOrUpdateDeviceTokens(userDoc[0]._id, data);
       } else {
         console.log("User not found, returning error.");
@@ -155,10 +140,7 @@ export const login = async (req, res) => {
         let paymentDoc = await paymentExists(userDoc[0]._id);
         console.log("Payment document found for social login:", paymentDoc);
 
-        // Map numerical role to string
-        const roleString = mapRoleNumberToString(userDoc[0].role);
-
-        await generateToken(res, data.email || null, userDoc[0], paymentDoc, roleString);
+        await generateToken(res, data.email || null, userDoc[0], paymentDoc, userDoc[0].role);
         await addOrUpdateDeviceTokens(userDoc[0]._id, data);
       } else {
         if (data?.email) {
@@ -193,8 +175,7 @@ export const login = async (req, res) => {
 
         let paymentDoc = await paymentExists(userDoc._id);
         let freeTrialUserDoc = {};
-        const roleString = mapRoleNumberToString(userDoc.role);
-        await generateToken(res, userDoc?.email || '', userDoc, paymentDoc, roleString);
+        await generateToken(res, userDoc?.email || '', userDoc, paymentDoc, userDoc.role);
         await addOrUpdateDeviceTokens(userDoc._id, data);
       }
     }
@@ -379,11 +360,7 @@ export const signUp = async (req, res) => {
             );
           }
           delete userDoc[0]['confirmation_otp'];
-          
-          // Map numerical role to string
-          const roleString = mapRoleNumberToString(userDocs.role);
-
-          await generateToken(res, data.email || data.phone_number, userDocs, paymentDoc, roleString);
+          await generateToken(res, data.email || data.phone_number, userDocs, paymentDoc, userDocs.role);
           await addOrUpdateDeviceTokens(userDoc[0]._id, data);
         } else {
           return badRequestError(res, messages.email_is_already_in_use_with_other_social_account);
@@ -415,11 +392,7 @@ export const signUp = async (req, res) => {
               );
             }
             delete resp['confirmation_otp'];
-
-            // Map numerical role to string
-            const roleString = mapRoleNumberToString(resp.role);
-
-            await generateToken(res, data.email || data.phone_number, resp, {}, roleString);
+            await generateToken(res, data.email || data.phone_number, resp, {}, resp.role);
           },
           (error) => {
             logger.log(
@@ -452,10 +425,7 @@ export const signUp = async (req, res) => {
           console.log("Social signup update result:", userDocs);
           console.log("Social signup payment document:", paymentDoc);
 
-          // Map numerical role to string
-          const roleString = mapRoleNumberToString(userDocs.role);
-
-          await generateToken(res, data['email'] || null, userDocs, paymentDoc, roleString);
+          await generateToken(res, data['email'] || null, userDocs, paymentDoc, userDocs.role);
           await addOrUpdateDeviceTokens(userDoc[0]._id, data);
         } else {
           return badRequestError(res, messages.email_is_already_in_use_with_other_social_account);
@@ -493,8 +463,7 @@ export const signUp = async (req, res) => {
 
         let paymentDoc = await paymentExists(userDoc._id);
         let freeTrialUserDoc = {};
-        const roleString = mapRoleNumberToString(userDoc.role);
-        await generateToken(res, userDoc?.email || '', userDoc, paymentDoc, roleString);
+        await generateToken(res, userDoc?.email || '', userDoc, paymentDoc, userDoc.role);
         await addOrUpdateDeviceTokens(userDoc._id, data);
       }    
     } else {
@@ -552,12 +521,6 @@ export const verifyOTP = async (req, res) => {
 
     if (updated) {
       // Pass the updated user data to the response
-      // Map numerical role to string
-      const roleString = ROLE_MAPPING[updated.role] || "unknown";
-
-      // Update the role in the updated document
-      updated.role = roleString;
-
       return okResponse(res, messages.user_verified_success, updated);
     } else {
       return badRequestError(res, messages.otp_expired);
@@ -652,11 +615,11 @@ export const updateUserDetail = async (req, res, next) => {
         return badRequestError(res, messages.invalid_file_selected);
       }
 
-      const [userRecord] = await User.get(filter);
-      console.log("User found for updating profile image:", userRecord);
+      const [user] = await User.get(filter);
+      console.log("User found for updating profile image:", user);
 
-      if (userRecord && userRecord.profile_image) {
-        removeFileFromS3(process.env.Aws_Bucket_Name, userRecord.profile_image);
+      if (user && user.profile_image) {
+        removeFileFromS3(process.env.Aws_Bucket_Name, user.profile_image);
       }
       await uploadFileAndUpdateProfileURL(s3Location, file, filter);
     }
@@ -667,10 +630,6 @@ export const updateUserDetail = async (req, res, next) => {
         s3Location
       );
     }
-
-    // Map numerical role to string
-    const roleString = ROLE_MAPPING[user.role] || "unknown";
-    user.role = roleString;
 
     return await okResponse(
       res,
@@ -811,11 +770,6 @@ export const getUserByID = async (req, res) => {
       } else {
         freeTrialUserDoc = freeTrialUserDoc;
       }
-
-      // Map numerical role to string
-      const roleString = ROLE_MAPPING[userData.role] || "unknown";
-      userData.role = roleString;
-
       return okResponse(res, messages.user_found, { access_token: access_token, userDoc: userData, paymentDoc: paymentDoc, freeTrialUserDoc: freeTrialUserDoc });
     } else {
       console.log("User not found by ID.");
@@ -1045,11 +999,6 @@ export const checkForTrialEnd = async (req, res) => {
       userDoc[USER_PRO_STATUS.TRIAL] = false;
       userDoc[USER_PRO_STATUS.TRIAL_EXPIRED] = false;
     }
-
-    // Map numerical role to string
-    const roleString = ROLE_MAPPING[userDoc.role] || "unknown";
-    userDoc.role = roleString;
-
     return okResponse(res, messages.trial_not_exceeded, { ...userDoc });
   } catch (error) {
     logger.log(

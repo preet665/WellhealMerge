@@ -1,3 +1,5 @@
+// src/routes/index.js
+
 import { Router } from "express";
 import AuthRoutes from "./auth.route.js";
 import AdminRoutes from "./admin.route.js";
@@ -11,10 +13,13 @@ import QuoteRoutes from "./quote.route.js";
 import NotificationRoutes from "./notification.route.js";
 import PaymentRoutes from "./payment.route.js";
 import resourceTypeRoutes from "./resourceType.route.js";
-import subscribeCardRoutes from "./suubscribeCard.route.js"
-import subscribePaymentCardRoutes from "./subscribePaymentCard.route.js"
+import subscribeCardRoutes from "./suubscribeCard.route.js";
+import subscribePaymentCardRoutes from "./subscribePaymentCard.route.js";
 import { verifyMiddleware } from "../shared/middleweres/auth.middlewere.js";
 import DoctorRoutes from "./doctor.route.js";
+import messageRoutes from './message.routes.js'; // Existing routes
+//import userStatusRoutes from './userStatus.routes.js'; // Existing user status routes
+import callRoutes from './call.routes.js'; // Import call routes
 
 const routes = new Router();
 const Path = {
@@ -32,7 +37,9 @@ const Path = {
   resourceType: "/resource_type",
   subscribeCard: "/subscribeCard",
   subscribePaymentCard: "/subscribePaymentCard",
-  doctor: "/doctor"
+  doctor: "/doctor",
+  call: "/calls", // Added path for calls
+  messages: "/messages"
 };
 
 routes.use(Path.admin, AdminRoutes);
@@ -40,6 +47,7 @@ routes.use(Path.auth, AuthRoutes);
 
 routes.use(verifyMiddleware);
 
+// Protected routes below
 routes.use(Path.question, QuestionRoutes);
 routes.use(Path.category, CategoryRoutes);
 routes.use(Path.therapy, TherapyRoutes);
@@ -53,5 +61,6 @@ routes.use(Path.resourceType, resourceTypeRoutes);
 routes.use(Path.subscribeCard, subscribeCardRoutes);
 routes.use(Path.subscribePaymentCard, subscribePaymentCardRoutes);
 routes.use(Path.doctor, DoctorRoutes);
-
+routes.use(Path.call, callRoutes); // Mount call routes
+routes.use(Path.messages,messageRoutes); 
 export default routes;

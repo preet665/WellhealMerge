@@ -9,7 +9,14 @@ import User from '../models/user.model.js';
 import Appointment from '../models/appointment.model.js';
 import DoctorTokenModel from '../models/doctor_token.model.js';
 import { logger, level } from '../config/logger.js';
+import CallReviewRating from '../models/call_review_rating.model.js';
+import Call from '../models/call.model.js';
+import Razorpay from 'razorpay';
 // Doctor login
+const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 export async function login(req, res) {
     try {
         const { email, password } = req.body;
@@ -61,7 +68,126 @@ export async function login(req, res) {
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 }
+export async function getTransactionHistory(req, res) {
+    try {
+        const { doctorId, count, page = 1, limit = 10 } = req.body; // Extracting doctorId, count, page, and limit from request body
 
+        // Validate presence of doctorId
+        if (!doctorId) {
+            return res.status(400).json({
+                success: false,
+                message: "Doctor ID is required.",
+            });
+        }
+
+        // Validate doctorId format if using MongoDB ObjectId
+        if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Doctor ID format.",
+            });
+        }
+
+        // Validate page and limit values
+        if (!Number.isInteger(page) || page <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Page must be a positive integer.",
+            });
+        }
+
+        if (!Number.isInteger(limit) || limit <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Limit must be a positive integer.",
+            });
+        }
+
+        // Validate count if provided
+        if (count !== undefined && (!Number.isInteger(count) || count <= 0)) {
+            return res.status(400).json({
+                success: false,
+                message: "Count must be a positive integer.",
+            });
+        }
+
+        // Set default count if not provided
+        const transactionCount = count || limit;
+
+        // Fetch transactions from Razorpay with dynamic count and pagination
+        const options = {
+            count: transactionCount,
+            skip: (page - 1) * limit, // Skip the records for pagination
+        };
+
+        const transactions = await razorpay.payments.all(options);
+
+        // Filter transactions related to the doctorId
+        const doctorTransactions = transactions.items.filter(payment => {
+            return payment.notes && payment.notes.doctorId === doctorId;
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: doctorTransactions,
+            currentPage: page,
+            totalPages: Math.ceil(transactions.items.length / limit),
+            message: "Transaction history fetched successfully.",
+        });
+
+    } catch (error) {
+        console.error("Error fetching transaction history:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error.",
+            error: error.message,
+        });
+    }
+}
+export const getCallReviewsByDoctor = async (req, res) => {
+    try {
+        const { doctorId } = req.body;
+
+        // Validate doctorId
+        if (!doctorId || !mongoose.Types.ObjectId.isValid(doctorId)) {
+            return res.status(400).json({
+                success: false,
+                message: "A valid doctorId is required.",
+            });
+        }
+
+        // Optional: Verify that the doctor exists
+        const doctor = await Doctor.findById(doctorId).lean();
+        if (!doctor) {
+            return res.status(404).json({
+                success: false,
+                message: "Doctor not found.",
+            });
+        }
+
+        // Fetch all call reviews for the specified doctor
+        const reviews = await CallReviewRating.find({ doctorId })
+            .populate('userId', 'name profile_image') // Populate user details (adjust fields as needed)
+            .populate('callId', 'date timeSlot') // Populate call details (adjust fields as needed)
+            .lean();
+
+        // Optionally, calculate average rating
+        const totalRatings = reviews.length;
+        const averageRating = totalRatings > 0
+            ? (reviews.reduce((acc, curr) => acc + curr.rating, 0) / totalRatings).toFixed(2)
+            : 0;
+
+        return res.status(200).json({
+            success: true,
+            data: reviews,
+            averageRating,
+            message: "Doctor call reviews fetched successfully!",
+        });
+    } catch (error) {
+        console.error("Error fetching doctor call reviews:", error);
+        return res.status(500).json({ code: 500, message: error.message });
+    }
+};
 // Doctor Information
 export async function getLoggedInUser(req, res) {
     try {
@@ -291,19 +417,22 @@ export async function getFilterSlots(req, res) {
     try {
         const userId = req.userdata._id;
         const role = req.userdata.role;
-        const doctorId = req.body.doctorId;
-        const date = req.body.date;
-        let findSlots;
+        const { doctorId, date } = req.body;
+
+        logger.log(`Fetching filter-wise slots for user ID: ${userId}, Role: ${role}, Doctor ID: ${doctorId}, Date: ${date}`);
 
         const findUser = role === 'doctor' ? await Doctor.findById({ _id: userId }).lean() : await User.findById({ _id: userId }).lean();
+        logger.log(`User found: ${findUser ? 'Yes' : 'No'}`);
 
         if (!findUser) {
+            logger.log(`User not found with ID: ${userId}`);
             return res.status(404).send({
                 message: "User not found!",
                 success: false,
             });
         }
 
+        let findSlots;
         if (role === 'user') {
             findSlots = await DoctorAvailability.findOne({
                 date,
@@ -324,8 +453,9 @@ export async function getFilterSlots(req, res) {
                     select: "name _id price",
                 })
                 .lean();
-
         }
+
+        logger.log(`Slots found: ${findSlots?.slot?.length ? 'Yes' : 'No'}`);
 
         if (!findSlots || !findSlots.slot?.length) {
             return res.status(200).send({
@@ -334,13 +464,37 @@ export async function getFilterSlots(req, res) {
             });
         }
 
+const modeDescriptions = {
+            "voicecall": "Can make voice call with doctor",
+            "videocall": "Can make video call with doctor",
+            "chat": "Can make messaging with doctor",
+            "offline": "Can make meeting at doctor’s clinic"
+        };
+
+        // Normalize mode names and add descriptions
+        findSlots.mode = findSlots.mode.map((mode) => {
+            const normalizedModeName = mode.name.toLowerCase().replace(/\s+/g, '');
+            return {
+                ...mode,
+                description: modeDescriptions[normalizedModeName] || "No description available"
+            };
+        });
+
+        // Fetch upcoming available dates
+        const upcomingDates = await DoctorAvailability.find({
+            doctorId: role === 'user' ? doctorId : userId,
+            date: {$gt: date}, // Find dates greater than the current date
+            "slot.isBooked": false // Ensure at least one slot is available
+        }).select('date -_id').sort({ date: 1 }).lean();
+
         return res.status(200).send({
             success: true,
             data: findSlots,
+            upcomingDates: upcomingDates.map(d => d.date), // Return only the dates
             message: "Slots fetched successfully!",
         });
     } catch (error) {
-        console.log("error====>", error);
+        logger.log(level.error, `Error fetching filter-wise slots: ${error.message}`);
         return res.status(500).send({
             success: false,
             error: error.message,
@@ -608,68 +762,190 @@ export async function updateModeStatus(req, res) {
         });
     }
 }
+import mongoose from 'mongoose';
 
 // Get appointments
+//import moment from 'moment'; // Assuming moment.js is available for date formatting
+
 export async function getAppointments(req, res) {
     try {
         const userId = req.userdata._id;
-        const searchStatus = req.query.searchStatus;
+        console.log('User ID:', userId);
 
+        const searchStatus = req.query.searchStatus;
+        console.log('Search Status:', searchStatus);
+
+        // Check if the doctor exists
         const checkExistUser = await Doctor.findById({ _id: userId }).lean();
+        console.log('Doctor found:', checkExistUser);
 
         if (!checkExistUser) {
+            console.log('User not found.');
             return res.status(400).json({
                 success: false,
                 message: "User not found, Please try again!",
             });
         }
 
-        let pipeline = [
-            {
-                $lookup: {
-                    from: 'modes',
-                    localField: 'modeId',
-                    foreignField: '_id',
-                    pipeline: [
-                        { $project: { _id: 1, name: 1 } }
-                    ],
-                    as: 'modeId'
-                }
-            },
-            { $unwind: '$modeId' },
-            {
-                $lookup: {
-                    from: 'doctoravailabilities',
-                    let: { timeSlotId: '$timeSlot' },
-                    pipeline: [
-                        { $unwind: '$slot' },
-                        { $match: { $expr: { $eq: ['$slot._id', '$$timeSlotId'] } } },
-                        { $project: { _id: '$slot._id', time: '$slot.time', isBooked: '$slot.isBooked' } }
-                    ],
-                    as: 'timeSlot'
-                }
-            },
-            { $unwind: '$timeSlot' }
-        ];
+        const doctorObjectId = mongoose.Types.ObjectId(userId);
+        console.log('Doctor ObjectId:', doctorObjectId);
 
+        // Initialize the pipeline with a match for doctorId and status
+        let matchStage = {
+            $match: {
+                doctorId: doctorObjectId
+            }
+        };
         if (searchStatus) {
-            pipeline.push({
-                $match: { status: searchStatus }
+            matchStage.$match.status = { $regex: new RegExp('^' + searchStatus + '$', 'i') };
+        }
+        console.log('Match Stage:', JSON.stringify(matchStage, null, 2));
+
+        let pipeline = [matchStage];
+        console.log('Pipeline after adding match stage:', JSON.stringify(pipeline, null, 2));
+
+        // Execute the initial match
+        const matchedAppointments = await Appointment.aggregate(pipeline);
+        console.log('Number of appointments after initial $match:', matchedAppointments.length);
+        console.log('Matched Appointments:', matchedAppointments);
+
+        if (matchedAppointments.length === 0) {
+            console.log('No appointments found after initial $match.');
+            return res.status(200).json({
+                success: true,
+                data: [],
+                message: "No appointments found!",
             });
         }
 
+        // Proceed with the rest of the pipeline
+pipeline = pipeline.concat([
+    {
+        $lookup: {
+            from: 'modes',
+            localField: 'modeId',
+            foreignField: '_id',
+            as: 'modeId'
+        }
+    },
+    { $unwind: { path: '$modeId', preserveNullAndEmptyArrays: true } },
+    {
+        $lookup: {
+            from: 'doctoravailabilities',
+            let: { timeSlotId: '$timeSlot' },
+            pipeline: [
+                { $unwind: '$slot' },
+                {
+                    $match: {
+                        $expr: {
+                            $eq: ['$slot._id', '$$timeSlotId']
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        _id: '$slot._id',
+                        time: '$slot.time',
+                        isBooked: '$slot.isBooked'
+                    }
+                }
+            ],
+            as: 'timeSlot'
+        }
+    },
+    { $unwind: { path: '$timeSlot', preserveNullAndEmptyArrays: true } },
+    {
+        $addFields: {
+            formattedDate: {
+                $cond: {
+                    if: { $eq: [{ $type: "$date" }, "string"] }, // Check if "date" is a string
+                    then: {
+                        $dateToString: {
+                            format: "%d-%m-%Y", // Desired format: dd-mm-yyyy
+                            date: {
+                                $dateFromString: {
+                                    dateString: { $substr: ["$date", 0, 24] }, // Strip unnecessary info
+                                    onError: null, // Set to null if conversion fails
+                                    onNull: null // Handle null values gracefully
+                                }
+                            },
+                            timezone: "UTC"
+                        }
+                    },
+                    else: "$date" // If it's already a date, use it as is
+                }
+            },
+            formattedStartTime: {
+                $cond: {
+                    if: { $eq: [{ $type: "$startTime" }, "string"] }, // Check if "startTime" is a string
+                    then: {
+                        $dateToString: {
+                            format: "%d-%m-%Y",
+                            date: {
+                                $dateFromString: {
+                                    dateString: { $substr: ["$startTime", 0, 24] },
+                                    onError: null,
+                                    onNull: null
+                                }
+                            },
+                            timezone: "UTC"
+                        }
+                    },
+                    else: "$startTime"
+                }
+            },
+            formattedEndTime: {
+                $cond: {
+                    if: { $eq: [{ $type: "$endTime" }, "string"] }, // Check if "endTime" is a string
+                    then: {
+                        $dateToString: {
+                            format: "%d-%m-%Y",
+                            date: {
+                                $dateFromString: {
+                                    dateString: { $substr: ["$endTime", 0, 24] },
+                                    onError: null,
+                                    onNull: null
+                                }
+                            },
+                            timezone: "UTC"
+                        }
+                    },
+                    else: "$endTime"
+                }
+            }
+        }
+    }
+]);
+
+
+
+        console.log('Executing full aggregation pipeline.');
+
         const appointments = await Appointment.aggregate(pipeline);
+        console.log('Appointments found:', appointments);
+
+        // Map results to include formatted dates
+        const formattedAppointments = appointments.map(appointment => {
+            return {
+                ...appointment,
+                formattedDate: moment(appointment.date).format('DD/MM/YYYY'),
+                formattedStartTime: moment(appointment.startTime).format('DD/MM/YYYY'),
+                formattedEndTime: moment(appointment.endTime).format('DD/MM/YYYY')
+            };
+        });
 
         return res.status(200).json({
             success: true,
-            data: appointments,
+            data: formattedAppointments,
             message: "Appointments retrieved successfully!",
         });
     } catch (error) {
-        console.log("error", error);
+        console.error("Error in getAppointments:", error);
         return res.status(500).json({ code: 500, message: error.message });
     }
 }
+
+
 
 // Get patients
 export async function getPatients(req, res) {

@@ -118,9 +118,15 @@ export const REFERRER_TYPE = Object.freeze({
 
 export const USER_ROLE = Object.freeze({
     DOCTOR: 1,
-    PATIENT: 2
+    PATIENT: 2,
+    ADMIN: 3
 });
-
+export const ROLE_MAPPING = {
+  [USER_ROLE.PATIENT]: "patient",
+  [USER_ROLE.DOCTOR]: "doctor",
+  [USER_ROLE.ADMIN]: "admin",
+  // Add other mappings as needed
+};
 export const MODAL_ID = Object.freeze({
     Category: 'category_id',
     SubCategory: 'subcategory_id',
@@ -144,3 +150,23 @@ export const MODAL_ID = Object.freeze({
 
 });
 
+export const ROLES = {
+  PATIENT: 'patient',
+  DOCTOR: 'doctor',
+  ADMIN: 'admin',
+  // Add other roles as needed
+};
+
+export const ROLE_MAP = {
+  1: ROLES.PATIENT,
+  2: ROLES.DOCTOR,
+  3: ROLES.ADMIN,
+  // Add other mappings as needed
+};
+
+export const ROLE_REVERSE_MAP = {
+  [ROLES.PATIENT]: 1,
+  [ROLES.DOCTOR]: 2,
+  [ROLES.ADMIN]: 3,
+  // Add other reverse mappings as needed
+};
