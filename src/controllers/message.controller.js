@@ -173,6 +173,20 @@ export const sendMessage = async (data) => {
         // Save message to database
         await newMessage.save({ session });
 
+        // Ensure `ChatList` exists for the sender
+        let senderChatList = await ChatList.findOne({ userId: senderId, role: senderRole }).session(session);
+        if (!senderChatList) {
+            senderChatList = await ChatList.create([{ userId: senderId, role: senderRole, chats: [] }], { session });
+            senderChatList = senderChatList[0];
+        }
+
+        // Ensure `ChatList` exists for the receiver
+        let receiverChatList = await ChatList.findOne({ userId: receiverId, role: receiverRole }).session(session);
+        if (!receiverChatList) {
+            receiverChatList = await ChatList.create([{ userId: receiverId, role: receiverRole, chats: [] }], { session });
+            receiverChatList = receiverChatList[0];
+        }
+
         // Update ChatList for Sender
         await ChatList.findOneAndUpdate(
             { userId: senderId, role: senderRole },
@@ -227,6 +241,7 @@ export const sendMessage = async (data) => {
         };
     }
 };
+
 
 /**
  * Controller to retrieve messages for a specific roomId via Socket.IO.

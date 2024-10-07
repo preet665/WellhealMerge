@@ -140,21 +140,37 @@ export async function getTransactionHistory(req, res) {
         // Debug: Log all transactions received from Razorpay
         console.log("All Transactions from Razorpay:", JSON.stringify(transactions, null, 2));
 
-        // Filter transactions related to the doctorId
-        const doctorTransactions = transactions.items.filter(payment => {
-            // Debug: Log each payment's doctorId (if exists)
-            const paymentDoctorId = payment.description;
+        // Filter transactions related to the doctorId and extract userId from the description
+        const doctorTransactions = await Promise.all(transactions.items.map(async (payment) => {
+            const paymentDescription = payment.description || '';
+            const [paymentDoctorId, userId] = paymentDescription.split('_'); // Split description into doctorId and userId
+            
             console.log(`Checking payment for doctorId: ${paymentDoctorId} against ${doctorId}`);
             
-            return payment.description === doctorId;
-        });
+            // Check if the transaction is related to the doctorId
+            if (paymentDoctorId === doctorId && userId) {
+                // Fetch user details from the User model using userId
+                const user = await User.findById(userId).lean();
+        const createdAtDate = payment.created_at
+            ? new Date(payment.created_at * 1000).toLocaleString('en-US', { timeZone: 'UTC' }) // Convert to milliseconds and format
+            : null;                // Return the transaction along with the user details
+                return {
+                    ...payment, // Include the payment details
+			created_at: createdAtDate,
+			user: user ? { _id: user._id || null, name: user.name || null, profile_image: user.profile_image || null } : { _id: null, name: null, profile_image: null }
+                };
+            }
+        }));
+
+        // Filter out any undefined transactions (those that didn't match the doctorId)
+        const filteredDoctorTransactions = doctorTransactions.filter(trx => trx !== undefined);
 
         // Debug: Log filtered transactions for the doctor
-        console.log("Filtered Transactions for Doctor:", JSON.stringify(doctorTransactions, null, 2));
+        console.log("Filtered Transactions for Doctor:", JSON.stringify(filteredDoctorTransactions, null, 2));
 
         return res.status(200).json({
             success: true,
-            data: doctorTransactions,
+            data: filteredDoctorTransactions,
             currentPage: page,
             totalPages: Math.ceil(transactions.items.length / limit),
             message: "Transaction history fetched successfully.",
@@ -169,6 +185,7 @@ export async function getTransactionHistory(req, res) {
         });
     }
 }
+
 export const getCallReviewsByDoctor = async (req, res) => {
     try {
         const { doctorId } = req.body;
@@ -787,7 +804,7 @@ export async function updateModeStatus(req, res) {
         });
     }
 }
-import mongoose from 'mongoose';
+//import mongoose from 'mongoose';
 
 // Get appointments
 //import moment from 'moment'; // Assuming moment.js is available for date formatting
@@ -829,120 +846,109 @@ export async function getAppointments(req, res) {
         let pipeline = [matchStage];
         console.log('Pipeline after adding match stage:', JSON.stringify(pipeline, null, 2));
 
-        // Execute the initial match
-        const matchedAppointments = await Appointment.aggregate(pipeline);
-        console.log('Number of appointments after initial $match:', matchedAppointments.length);
-        console.log('Matched Appointments:', matchedAppointments);
-
-        if (matchedAppointments.length === 0) {
-            console.log('No appointments found after initial $match.');
-            return res.status(200).json({
-                success: true,
-                data: [],
-                message: "No appointments found!",
-            });
-        }
-
-        // Proceed with the rest of the pipeline
-pipeline = pipeline.concat([
-    {
-        $lookup: {
-            from: 'modes',
-            localField: 'modeId',
-            foreignField: '_id',
-            as: 'modeId'
-        }
-    },
-    { $unwind: { path: '$modeId', preserveNullAndEmptyArrays: true } },
-    {
-        $lookup: {
-            from: 'doctoravailabilities',
-            let: { timeSlotId: '$timeSlot' },
-            pipeline: [
-                { $unwind: '$slot' },
-                {
-                    $match: {
-                        $expr: {
-                            $eq: ['$slot._id', '$$timeSlotId']
-                        }
-                    }
-                },
-                {
-                    $project: {
-                        _id: '$slot._id',
-                        time: '$slot.time',
-                        isBooked: '$slot.isBooked'
-                    }
-                }
-            ],
-            as: 'timeSlot'
-        }
-    },
-    { $unwind: { path: '$timeSlot', preserveNullAndEmptyArrays: true } },
-    {
-        $addFields: {
-            formattedDate: {
-                $cond: {
-                    if: { $eq: [{ $type: "$date" }, "string"] }, // Check if "date" is a string
-                    then: {
-                        $dateToString: {
-                            format: "%d-%m-%Y", // Desired format: dd-mm-yyyy
-                            date: {
-                                $dateFromString: {
-                                    dateString: { $substr: ["$date", 0, 24] }, // Strip unnecessary info
-                                    onError: null, // Set to null if conversion fails
-                                    onNull: null // Handle null values gracefully
-                                }
-                            },
-                            timezone: "UTC"
-                        }
-                    },
-                    else: "$date" // If it's already a date, use it as is
+        // Proceed with the pipeline
+        pipeline = pipeline.concat([
+            // Lookup mode details
+            {
+                $lookup: {
+                    from: 'modes',
+                    localField: 'modeId',
+                    foreignField: '_id',
+                    as: 'modeDetails'
                 }
             },
-            formattedStartTime: {
-                $cond: {
-                    if: { $eq: [{ $type: "$startTime" }, "string"] }, // Check if "startTime" is a string
-                    then: {
-                        $dateToString: {
-                            format: "%d-%m-%Y",
-                            date: {
-                                $dateFromString: {
-                                    dateString: { $substr: ["$startTime", 0, 24] },
-                                    onError: null,
-                                    onNull: null
+            { $unwind: { path: '$modeDetails', preserveNullAndEmptyArrays: true } },
+            
+            // Lookup timeSlot details from doctoravailabilities
+            {
+                $lookup: {
+                    from: 'doctoravailabilities',
+                    let: { timeSlotId: '$timeSlot' },
+                    pipeline: [
+                        { $unwind: '$slot' },
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ['$slot._id', '$$timeSlotId']
                                 }
-                            },
-                            timezone: "UTC"
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: '$slot._id',
+                                time: '$slot.time',
+                                isBooked: '$slot.isBooked'
+                            }
                         }
-                    },
-                    else: "$startTime"
+                    ],
+                    as: 'timeSlotDetails'
                 }
             },
-            formattedEndTime: {
-                $cond: {
-                    if: { $eq: [{ $type: "$endTime" }, "string"] }, // Check if "endTime" is a string
-                    then: {
-                        $dateToString: {
-                            format: "%d-%m-%Y",
-                            date: {
-                                $dateFromString: {
-                                    dateString: { $substr: ["$endTime", 0, 24] },
-                                    onError: null,
-                                    onNull: null
+            { $unwind: { path: '$timeSlotDetails', preserveNullAndEmptyArrays: true } },
+            
+            // Add formatted date, startTime, endTime fields
+            {
+                $addFields: {
+                    formattedDate: {
+                        $cond: {
+                            if: { $eq: [{ $type: "$date" }, "string"] },
+                            then: {
+                                $dateToString: {
+                                    format: "%d-%m-%Y",
+                                    date: {
+                                        $dateFromString: {
+                                            dateString: { $substr: ["$date", 0, 24] },
+                                            onError: null,
+                                            onNull: null
+                                        }
+                                    },
+                                    timezone: "UTC"
                                 }
                             },
-                            timezone: "UTC"
+                            else: "$date"
                         }
                     },
-                    else: "$endTime"
+                    formattedStartTime: {
+                        $cond: {
+                            if: { $eq: [{ $type: "$startTime" }, "string"] },
+                            then: {
+                                $dateToString: {
+                                    format: "%H:%M",
+                                    date: {
+                                        $dateFromString: {
+                                            dateString: { $substr: ["$startTime", 0, 24] },
+                                            onError: null,
+                                            onNull: null
+                                        }
+                                    },
+                                    timezone: "UTC"
+                                }
+                            },
+                            else: "$startTime"
+                        }
+                    },
+                    formattedEndTime: {
+                        $cond: {
+                            if: { $eq: [{ $type: "$endTime" }, "string"] },
+                            then: {
+                                $dateToString: {
+                                    format: "%H:%M",
+                                    date: {
+                                        $dateFromString: {
+                                            dateString: { $substr: ["$endTime", 0, 24] },
+                                            onError: null,
+                                            onNull: null
+                                        }
+                                    },
+                                    timezone: "UTC"
+                                }
+                            },
+                            else: "$endTime"
+                        }
+                    }
                 }
             }
-        }
-    }
-]);
-
-
+        ]);
 
         console.log('Executing full aggregation pipeline.');
 
@@ -954,8 +960,10 @@ pipeline = pipeline.concat([
             return {
                 ...appointment,
                 formattedDate: moment(appointment.date).format('DD/MM/YYYY'),
-                formattedStartTime: moment(appointment.startTime).format('DD/MM/YYYY'),
-                formattedEndTime: moment(appointment.endTime).format('DD/MM/YYYY')
+                formattedStartTime: moment(appointment.startTime).format('HH:mm'),
+                formattedEndTime: moment(appointment.endTime).format('HH:mm'),
+                timeSlotDetails: appointment.timeSlotDetails,
+                modeDetails: appointment.modeDetails
             };
         });
 
@@ -966,10 +974,10 @@ pipeline = pipeline.concat([
         });
     } catch (error) {
         console.error("Error in getAppointments:", error);
+        logger.log('error', `Error in getAppointments: ${error.message}`);
         return res.status(500).json({ code: 500, message: error.message });
     }
 }
-
 
 
 // Get patients
@@ -1375,4 +1383,29 @@ export const getChatList = async (req, res) => {
     logger.log(level.error, `getChatList Error: ${error.message}`);
     return res.status(500).json({ success: false, message: error.message });
   }
+};
+export const createRoomId = async (req, res) => {
+    try {
+        const { senderId, receiverId } = req.body;
+
+        if (!senderId || !receiverId) {
+            return res.status(400).json({
+                success: false,
+                message: "senderId and receiverId are required!",
+            });
+        }
+
+        let value = [senderId, receiverId];
+        value.sort((a, b) => b.localeCompare(a));
+        let roomId = value.join(',');
+
+        return res.status(200).json({
+            success: true,
+            data: roomId,
+            message: "RoomId created successfully!",
+        });
+    } catch (error) {
+        logger.log(level.error, `createRoomId Error: ${beautify(error.message)}`);
+        return res.status(500).json({ code: 500, message: error.message });
+    }
 };

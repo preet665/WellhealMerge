@@ -18,6 +18,7 @@ import DoctorAvailability from "../models/doctor_availability.model.js";
 import Doctor from "../models/doctor.model.js";
 import CallReviewRating from '../models/call_review_rating.model.js';
 import Call from '../models/call.model.js';
+import Mode from '../models/mode.model.js'
 import {
   internalServerError,
   beautify,
@@ -287,10 +288,9 @@ export const createCallReview = async (req, res) => {
 // Book Appointment
 export const bookAppointment = async (req, res) => { 
     try {
-        // Log the incoming request body and userdata for debugging
         const {
             doctorId,
-            date,
+            date,     
             timeSlot,
             modeId,
             price,
@@ -309,10 +309,9 @@ export const bookAppointment = async (req, res) => {
             });
         }
 
-        const userId = req.userdata._id; // Get userId from userdata
+        const userId = req.userdata._id;
 
         const checkExitUser = await User.findById(userId).lean();
-        
         if (!checkExitUser) {
             return res.status(400).json({
                 success: false,
@@ -320,25 +319,42 @@ export const bookAppointment = async (req, res) => {
             });
         }
 
-        // Validate the date format
-        const inputDate = new Date(date);
-        const currentDate = new Date();
+        // Query doctor availability using doctorId and date
+        const doctorAvailability = await DoctorAvailability.findOne({
+            doctorId: doctorId,
+            date: date
+        }).lean();
 
-        // Normalize dates to ignore time
-        inputDate.setHours(0, 0, 0, 0);
-        currentDate.setHours(0, 0, 0, 0);
-
-        // Check if the provided date is in the past
-        if (inputDate < currentDate) {
+        // Check if doctor availability is found
+        if (!doctorAvailability) {
             return res.status(400).json({
                 success: false,
-                message: "Cannot book an appointment for a past date. Please choose a future date.",
+                message: "Doctor availability not found for the selected date."
             });
         }
 
+        // Fetch mode details from the Mode collection
+        const modeDetails = await Mode.findById(modeId).lean();
+        if (!modeDetails) {
+            return res.status(400).json({
+                success: false,
+                message: "Selected mode not available. Please select a valid mode.",
+            });
+        }
+
+        // Fetch time slot details from the array
+        const selectedSlot = doctorAvailability.slot.find(slot => slot._id.equals(timeSlot));
+        if (!selectedSlot || selectedSlot.isBooked) {
+            return res.status(400).json({
+                success: false,
+                message: "Selected time slot is not available or already booked. Please select a valid time slot.",
+            });
+        }
+
+        // Save the appointment
         const saveAppointment = await new Appointment({
             doctorId,
-            date: inputDate,
+            date, 
             timeSlot,
             modeId,
             price,
@@ -347,46 +363,76 @@ export const bookAppointment = async (req, res) => {
             contactNumber,
             gender,
             problem,
-            userId: userId, // explicitly set the userId
+            userId: userId,
             paymentStatus: "Pending",
             status: "Upcoming",
         }).save();
 
-        await DoctorAvailability.findOneAndUpdate(
+        // Mark the time slot as booked
+        await DoctorAvailability.updateOne(
             { "slot._id": timeSlot },
-            { $set: { "slot.$.isBooked": true } },
-            { new: true }
-        ).lean();
+            { $set: { "slot.$.isBooked": true } }
+        );
 
-	const doctor = await Doctor.findById(doctorId).lean();
-	    const response = {
-	      success: true,
-	      data: {
-	        appointment: saveAppointment,
-	        doctor: {
-	          _id: doctor._id,
-	          email: doctor.email,
-	          contactNumber: doctor.contactNumber,
-	          firstName: doctor.firstName,
-	          lastName: doctor.lastName,
-	          about: doctor.about,
-	          destination: doctor.destination,
-	          experience: doctor.experience,
-	          profileImage: doctor.profileImage,
-	          rating: doctor.rating,
-	          review: doctor.review,
-	          totalPatients: doctor.totalPatients,
-	        },
-	      },
-	      message: "Appointment booked successfully!",
-	    };
+        const doctor = await Doctor.findById(doctorId).lean();
 
-	    return res.status(200).json(response);
+        const response = {
+            success: true,
+            data: {
+                appointment: {
+                    doctorId: doctor._id,
+                    userId: saveAppointment.userId,
+                    date: saveAppointment.date,
+                    mode: {
+                        _id: modeDetails._id,
+                        name: modeDetails.name,
+                        description: modeDetails.isActive ? "Active Mode" : "Inactive Mode",
+                    },
+                    timeSlot: {
+                        _id: selectedSlot._id,
+                        time: selectedSlot.time,
+                        isBooked: selectedSlot.isBooked
+                    },
+                    price: saveAppointment.price,
+                    name: saveAppointment.name,
+                    ageRange: saveAppointment.ageRange,
+                    contactNumber: saveAppointment.contactNumber,
+                    gender: saveAppointment.gender,
+                    problem: saveAppointment.problem,
+                    paymentStatus: saveAppointment.paymentStatus,
+                    status: saveAppointment.status,
+                    _id: saveAppointment._id,
+                    createdAt: saveAppointment.createdAt,
+                    updatedAt: saveAppointment.updatedAt
+                },
+                doctor: {
+                    _id: doctor._id,
+                    email: doctor.email,
+                    contactNumber: doctor.contactNumber,
+                    firstName: doctor.firstName,
+                    lastName: doctor.lastName,
+                    about: doctor.about,
+                    destination: doctor.destination,
+                    experience: doctor.experience,
+                    profileImage: doctor.profileImage,
+                    rating: doctor.rating,
+                    review: doctor.review,
+                    totalPatients: doctor.totalPatients
+                }
+            },
+            message: "Appointment booked successfully!"
+        };
+
+        return res.status(200).json(response);
     } catch (error) {
-        console.error("bookAppointment Error: ", error); // Log the full error
+        console.error("bookAppointment Error: ", error); 
         return res.status(500).json({ code: 500, message: error.message });
     }
 };
+
+
+
+
 export const filterAppointment = async (req, res) => {
    try {
         const { status } = req.body;
@@ -964,11 +1010,16 @@ export const getChatList = async (req, res) => {
 };
 
 // Get Messages Based on Room ID
+import mongoose from 'mongoose'; // MongoDB ODM
+import Message from '../models/message.model.js'; // Import Message model
+import logger from '../config/logger.js'; // Logger for logging errors
+
 export const getMessages = async (req, res) => {
     try {
         const { roomId } = req.body;
-        const userId = req.userdata._id;
+        const userId = req.userdata._id; // Assuming userId is stored in req.userdata from authentication middleware
 
+        // Validate roomId
         if (!roomId) {
             return res.status(400).json({
                 success: false,
@@ -976,12 +1027,28 @@ export const getMessages = async (req, res) => {
             });
         }
 
+        if (!mongoose.Types.ObjectId.isValid(roomId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid roomId format.",
+            });
+        }
+
+        // Fetch messages for the room
         const getMessage = await Message.find({ roomId }).lean();
 
+        if (!getMessage || getMessage.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No messages found for the given roomId.",
+            });
+        }
+
+        // Update messages as read where the receiver is the current user
         await Message.updateMany(
-            { receiverId: userId, roomId },
-            { $set: { isRead: true } },
-            { new: true }
+            { receiverId: userId, roomId, isRead: false }, // Only update unread messages
+            { $set: { isRead: true } }, // Mark as read
+            { new: true } // Return the updated documents
         );
 
         return res.status(200).json({
@@ -989,9 +1056,13 @@ export const getMessages = async (req, res) => {
             data: getMessage,
             message: "Messages fetched successfully!",
         });
+
     } catch (error) {
-        logger.log(level.error, `getMessages Error: ${beautify(error.message)}`);
-        return res.status(500).json({ code: 500, message: error.message });
+        logger.log('error', `getMessages Error: ${error.message}`);
+        return res.status(500).json({
+            code: 500,
+            message: error.message,
+        });
     }
 };
 

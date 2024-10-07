@@ -24,6 +24,7 @@ import {
     getTransactionHistory,
     getCallReviewsByDoctor,
     getChatList,
+    createRoomId
 } from '../controllers/doctor.controller.js';
 
 // Import WellHeal's middlewares
@@ -64,7 +65,7 @@ router.post("/addMode", doctorAuthMiddleware, addMode);
 router.get("/getMode", doctorAuthMiddleware, getMode);
 router.put("/updateMode/:id", doctorAuthMiddleware, updateMode);
 router.put("/updateModeStatus/:id", doctorAuthMiddleware, updateModeStatus);
-
+router.post("/createRoomId", doctorAuthMiddleware, createRoomId);
 // Logout
 router.post("/logout", doctorAuthMiddleware, logout);
 

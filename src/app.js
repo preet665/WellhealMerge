@@ -264,7 +264,7 @@ io.on('connection', (socket) => {
       // Update call details
       call.status = "Completed";
       call.endTime = new Date();
-      call.duration = Math.round((call.endTime - call.startTime) / 1000); // Duration in seconds
+      call.duration = Math.round((call.endTime - call.startTime) / 1000 / 60); // Duration in seconds
 
       await call.save();
 

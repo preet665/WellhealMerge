@@ -31,7 +31,7 @@ const MessageSchema = new mongoose.Schema(
       // No refPath; we'll handle population manually
     },
     roomId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       ref: "Room",
       required: true
     },
