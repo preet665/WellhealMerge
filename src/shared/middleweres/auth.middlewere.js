@@ -7,6 +7,7 @@ import { isExistOrNot } from "../services/database/query.service.js";
 import messages from "../constant/messages.const.js";
 import User from "../../models/user.model.js";
 import DoctorToken from "../../models/doctor_token.model.js";
+import AdminUser from "../../models/admin-user.model.js"
 const { _ } = pkg;
 
 const auth = new JWTAuth();
@@ -39,7 +40,7 @@ export const adminAuthMiddleware = async (req, res, next) => {
         console.log("Token parts:", tokenParts);
 
         let length = tokenParts.length;
-        if (length == tokenLength) {
+        if (length === tokenLength) {
             let accessToken = tokenParts[1];
             console.log("Access token:", accessToken);
 
@@ -52,10 +53,11 @@ export const adminAuthMiddleware = async (req, res, next) => {
                 console.log("Decoded email:", email);
                 console.log("Decoded userId:", userId);
 
-                const user = await User.findOne({ _id: userId, token: accessToken }).lean();
-                console.log("User found in DB:", user);
+                // Use AdminUser model to find the admin user by userId
+                const adminUser = await AdminUser.findById(userId).lean();
+                console.log("Admin User found in DB:", adminUser);
 
-                if (user) {
+                if (adminUser) {
                     logger.log(level.debug, `Admin token exists in the database for userId: ${userId}`);
                 } else {
                     console.log(`Admin token does not exist in the database for userId: ${userId}`);
@@ -69,11 +71,12 @@ export const adminAuthMiddleware = async (req, res, next) => {
             } catch (e) {
                 console.log("Error in adminAuthMiddleware:", e);
                 logger.log(level.error, `adminAuthMiddleware Error: ${e}`);
+                return unauthorizedError(res, messages.invalid_token || 'Invalid Token'); // Ensure a message is returned
             }
         }
     }
     console.log("Authorization failed, returning unauthorized error");
-    return unauthorizedError(res);
+    return unauthorizedError(res, messages.invalid_token || 'Invalid Token');
 };
 
 export const doctorAuthMiddleware = async (req, res, next) => {

@@ -16,18 +16,54 @@ export async function login(req, res) {
 
         logger.log(`Login request received for email: ${email}`);
 
-        // Find the doctor by email
+        // Validate request data
+        if (!email || !password) {
+            logger.log(`Missing email or password in request`);
+            return res.status(400).json({ success: false, message: 'Email and password are required' });
+        }
+
+        // Log the connection state
+//        const mongooseConnectionState = mongoose.connection.readyState;
+//        logger.log(`Mongoose connection state: ${mongooseConnectionState}`); // 0: disconnected, 1: connected, 2: connecting, 3: disconnecting
+
+        // Check total number of doctors
+        const doctorCount = await Doctor.countDocuments();
+        logger.log(`Total number of doctors in the database: ${doctorCount}`);
+
+        // Optionally log all emails (for debugging only)
+        // WARNING: Uncomment only in a secure, non-production environment
+        /*
+        const allDoctors = await Doctor.find({}, 'email');
+        logger.log(`All registered doctor emails: ${allDoctors.map(doc => doc.email).join(', ')}`);
+        */
+
+        // Execute the query
+        logger.log(`Executing Doctor.findOne with email: ${email}`);
         const doctor = await Doctor.findOne({ email: email });
 
         if (!doctor) {
+            logger.log(`No doctor found with email: ${email}`);
             return res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
+
+        logger.log(`Doctor found: ${doctor._id}`);
 
         // Compare password
         const isPasswordValid = await bcrypt.compare(password, doctor.password);
 
         if (!isPasswordValid) {
+            logger.log(`Invalid password for doctor ID: ${doctor._id}`);
             return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        }
+
+        logger.log(`Password valid for doctor ID: ${doctor._id}`);
+
+        // Ensure JWT_TOKEN_SECRET is set
+        if (!process.env.JWT_TOKEN_SECRET) {
+            logger.log('JWT_TOKEN_SECRET is not defined');
+            throw new Error('JWT_TOKEN_SECRET is missing');
+        } else {
+            logger.log('JWT_TOKEN_SECRET is set');
         }
 
         // Generate a new token
@@ -37,8 +73,7 @@ export async function login(req, res) {
             { expiresIn: '1h' }
         );
 
-        logger.log(`JWT_SECRET during login: ${process.env.JWT_SECRET}`);
-        logger.log(`Token generated: ${token}`);
+        logger.log(`Token generated for doctor ID ${doctor._id}: ${token}`);
 
         // Save the token in the DoctorToken collection
         const newDoctorToken = new DoctorTokenModel({
@@ -47,8 +82,9 @@ export async function login(req, res) {
         });
 
         await newDoctorToken.save();
+        logger.log(`Token saved in database for doctor ID: ${doctor._id}`);
 
-        logger.log(`Token saved in database for doctor: ${doctor._id}`);
+        logger.log(`Doctor ID ${doctor._id} successfully logged in`);
 
         return res.status(200).json({
             success: true,
@@ -57,10 +93,12 @@ export async function login(req, res) {
             message: 'You are successfully logged in'
         });
     } catch (error) {
-	logger.log(level.error, `Login error: ${error.message}`);
+        logger.log(level.error, `Login error: ${error.message}`, { stack: error.stack });
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 }
+
+
 
 // Doctor Information
 export async function getLoggedInUser(req, res) {
@@ -95,7 +133,7 @@ export async function getLoggedInUser(req, res) {
 export async function addPersonalDetail(req, res) {
     try {
         const userId = req.userdata._id;
-        const file = req.files?.profileImage[0];
+        const file = req.files?.profileImage ? req.files.profileImage[0] : null;
         const fileName = file ? file.filename : null;
         const findUser = await Doctor.findById({ _id: userId }).lean();
 
