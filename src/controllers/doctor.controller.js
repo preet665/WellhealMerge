@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import moment from 'moment';
@@ -49,7 +49,7 @@ export async function login(req, res) {
         logger.log(`Doctor found: ${doctor._id}`);
 
         // Compare password
-        const isPasswordValid = await bcrypt.compare(password, doctor.password);
+        const isPasswordValid = bcrypt.compare(password, doctor.password);
 
         if (!isPasswordValid) {
             logger.log(`Invalid password for doctor ID: ${doctor._id}`);
@@ -835,15 +835,16 @@ export async function getMonthYearWiseAppointment(req, res) {
             "July", "August", "September", "October", "November", "December"
         ];
 
-        const month = monthNames.indexOf(req.query.month);
+        const monthIndex = parseInt(req.query.month)-1; // Convert to number and adjust for zero-based index
+        const month = monthNames[monthIndex]; // changed from getting indexOf to getting value with index
         const year = parseInt(req.query.year);
 
         if (month === -1 || isNaN(year)) {
             return res.status(400).json({ code: 400, message: "Invalid month or year" });
         }
 
-        const startDate = new Date(Date.UTC(year, month, 1)).toISOString().split('T')[0];
-        const endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999)).toISOString().split('T')[0];
+        const startDate = new Date(Date.UTC(year, monthIndex, 1)).toISOString().split('T')[0]; // changed month (string) to monthIndex (number)
+        const endDate = new Date(Date.UTC(year, monthIndex + 1, 0, 23, 59, 59, 999)).toISOString().split('T')[0]; // changed month (string) to monthIndex (number)
 
         const appointments = await DoctorAvailability.find({
             doctorId: userId,
