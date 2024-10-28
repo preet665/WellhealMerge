@@ -9,6 +9,7 @@ import User from '../models/user.model.js';
 import Appointment from '../models/appointment.model.js';
 import DoctorTokenModel from '../models/doctor_token.model.js';
 import { logger, level } from '../config/logger.js';
+const fs = require("fs");
 // Doctor login
 export async function login(req, res) {
     try {
@@ -134,7 +135,7 @@ export async function addPersonalDetail(req, res) {
     try {
         const userId = req.userdata._id;
         const file = req.files?.profileImage ? req.files.profileImage[0] : null;
-        const fileName = file ? file.filename : null;
+        // const fileName = file ? file.filename : null; // REMOVE THIS. NO LONGER NEEDED
         const findUser = await Doctor.findById({ _id: userId }).lean();
 
         if (!findUser) {
@@ -142,6 +143,20 @@ export async function addPersonalDetail(req, res) {
                 message: "User not found!",
                 success: false,
             });
+        }
+        
+        let fileName;
+        const photo = file;
+        // check if photo is sent alongside other form data
+        if (photo) {
+            //check if file uploaded is an image and delete file from server if it's not an image file
+            if(photo.mimetype.split("/")[0] !== "image"){
+                fs.unlinkSync(`${photo.destination}/${photo.filename}`);
+                throw new Error("File uploaded is not an image");
+            }
+            fileName = `${photo.filename}.png`;
+            const mediaDestination = `../public/profileImages/`
+            fs.renameSync(`${photo.destination}/${photo.filename}`, `${mediaDestination}${fileName}`);
         }
 
         const addPersonalDetail = await Doctor.findByIdAndUpdate(
