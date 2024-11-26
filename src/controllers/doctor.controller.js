@@ -10,6 +10,8 @@ import Appointment from '../models/appointment.model.js';
 import DoctorTokenModel from '../models/doctor_token.model.js';
 import { logger, level } from '../config/logger.js';
 import { unlinkSync, renameSync } from 'fs'
+import mongoose from 'mongoose';
+import Razorpay from 'razorpay';
 
 // Doctor login
 export async function login(req, res) {
@@ -263,6 +265,203 @@ export async function addBankingDetail(req, res) {
         });
     }
 }
+
+
+export async function getTransactionHistory(req, res) {
+    try {
+        const { doctorId, count, page = 1, limit = 10 } = req.body;
+        
+        console.log("Input Values:", { doctorId, count, page, limit });
+        
+        if (!doctorId) {
+            console.log("Doctor ID is missing in the request.");
+            return res.status(400).json({
+                success: false,
+                message: "Doctor ID is required.",
+            });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+            console.log("Invalid Doctor ID format:", doctorId);
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Doctor ID format.",
+            });
+        }
+
+        if (!Number.isInteger(page) || page <= 0) {
+            console.log("Invalid Page value:", page);
+            return res.status(400).json({
+                success: false,
+                message: "Page must be a positive integer.",
+            });
+        }
+
+        if (!Number.isInteger(limit) || limit <= 0) {
+            console.log("Invalid Limit value:", limit);
+            return res.status(400).json({
+                success: false,
+                message: "Limit must be a positive integer.",
+            });
+        }
+
+        if (count !== undefined && (!Number.isInteger(count) || count <= 0)) {
+            console.log("Invalid Count value:", count);
+            return res.status(400).json({
+                success: false,
+                message: "Count must be a positive integer.",
+            });
+        }
+
+        // Set timestamp for one year ago
+        const oneYearAgo = Math.floor(Date.now() / 1000) - (365 * 24 * 60 * 60);
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+
+        // Calculate balances from ALL transactions using pagination
+        let authorizedBalance = 0;
+        let capturedBalance = 0;
+        let refundedAmount = 0;
+        let totalTransactionsCount = 0;
+        let hasMore = true;
+        let skip = 0;
+        const CHUNK_SIZE = 100;
+
+        console.log("Calculating balances from all transactions...");
+
+        
+
+        // instantiating razorpay
+        let razorpay = new Razorpay({
+            key_id: process.env.RAZORPAY_KEY_ID,
+            key_secret: process.env.RAZORPAY_KEY_SECRET,
+        });
+        
+        // Fetch and process all transactions in chunks
+        while (hasMore) {
+            const chunkOptions = {
+                count: CHUNK_SIZE,
+                skip: skip,
+                from: oneYearAgo,
+                to: currentTimestamp
+            };
+
+            const transactionsChunk = await razorpay.payments.all(chunkOptions);
+            const chunkItems = transactionsChunk.items || [];
+            
+            console.log(`Processing chunk of ${chunkItems.length} transactions, skip: ${skip}`);
+
+            // Process each transaction in the current chunk
+            for (const payment of chunkItems) {
+                const paymentDescription = payment.description || '';
+                const [paymentDoctorId] = paymentDescription.split('_');
+                
+                if (paymentDoctorId === doctorId) {
+                    totalTransactionsCount++;
+                    
+                    if (payment.status === 'authorized' && !payment.captured) {
+                        authorizedBalance += payment.amount;
+                    }
+                    if (payment.status === 'captured' || payment.captured) {
+                        capturedBalance += payment.amount;
+                    }
+                    if (payment.amount_refunded) {
+                        refundedAmount += payment.amount_refunded;
+                    }
+                }
+            }
+
+            // Check if we need to fetch more transactions
+            if (chunkItems.length < CHUNK_SIZE) {
+                hasMore = false;
+            } else {
+                skip += CHUNK_SIZE;
+            }
+        }
+
+        // Get paginated transactions for display
+        const paginationOptions = {
+            count: count || limit,
+            skip: (page - 1) * limit,
+            from: oneYearAgo,
+            to: currentTimestamp
+        };
+
+        const paginatedTransactions = await razorpay.payments.all(paginationOptions);
+        const transactions = paginatedTransactions.items || [];
+
+        // Process paginated transactions for display
+        const doctorTransactions = await Promise.all(transactions.map(async (payment) => {
+            const paymentDescription = payment.description || '';
+            const [paymentDoctorId, userId] = paymentDescription.split('_');
+            
+            if (paymentDoctorId === doctorId) {
+                let userDetails = {
+                    _id: null,
+                    name: null,
+                    profile_image: null
+                };
+
+                if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+                    try {
+                        const user = await User.findById(userId).lean();
+                        if (user) {
+                            userDetails = {
+                                _id: user._id.toString(),
+                                name: user.name || null,
+                                profile_image: user.profile_image || null
+                            };
+                        }
+                    } catch (error) {
+                        console.error('Error fetching user details:', error);
+                    }
+                }
+
+                const createdAtDate = payment.created_at
+                    ? new Date(payment.created_at * 1000).toLocaleString('en-US', { timeZone: 'UTC' })
+                    : null;
+                
+                return {
+                    ...payment,
+                    created_at: createdAtDate,
+                    user: userDetails
+                };
+            }
+            return null;
+        }));
+
+        const filteredDoctorTransactions = doctorTransactions.filter(trx => trx !== null);
+
+        // Calculate final balances
+        const balances = {
+            authorized: authorizedBalance,
+            captured: capturedBalance,
+            refunded: refundedAmount,
+            total: capturedBalance - refundedAmount
+        };
+
+        console.log("Final Balance Details:", balances);
+        console.log("Total number of transactions:", totalTransactionsCount);
+        console.log("Transactions in current page:", filteredDoctorTransactions.length);
+
+        return res.status(200).json({
+            success: true,
+            data: filteredDoctorTransactions,
+            currentPage: page,
+            totalPages: Math.ceil(totalTransactionsCount / limit),
+            balances: balances,
+            message: "Transaction history fetched successfully.",
+        });
+
+    } catch (error) {
+        console.error("Error fetching transaction history:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error.",
+            error: error.message,
+        });
+    }
+}
+
 
 // Set doctor availability information
 export async function addAvailabilityDetail(req, res) {

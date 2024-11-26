@@ -55,6 +55,7 @@
     "passport": "^0.6.0",
     "path": "^0.12.7",
     "puppeteer": "^19.4.1",
+    "razorpay": "^2.9.5",
     "shortid": "^2.2.16",
     "stripe": "^11.13.0",
     "uuid": "^9.0.0",
