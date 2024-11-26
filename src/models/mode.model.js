@@ -10,6 +10,10 @@ const ModeSchema = new mongoose.Schema({
         type: Number,
         require: true
     },
+    currency: {
+        type: String,
+        default: 'USD'
+    },
     isActive: {
         type: Boolean,
         default: true

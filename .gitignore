@@ -7,3 +7,4 @@ build
 doc.txt
 package-lock.json
 Wellheal
+.environment/

@@ -9,7 +9,8 @@ import User from '../models/user.model.js';
 import Appointment from '../models/appointment.model.js';
 import DoctorTokenModel from '../models/doctor_token.model.js';
 import { logger, level } from '../config/logger.js';
-const fs = require("fs");
+import { unlinkSync, renameSync } from 'fs'
+
 // Doctor login
 export async function login(req, res) {
     try {
@@ -151,12 +152,12 @@ export async function addPersonalDetail(req, res) {
         if (photo) {
             //check if file uploaded is an image and delete file from server if it's not an image file
             if(photo.mimetype.split("/")[0] !== "image"){
-                fs.unlinkSync(`${photo.destination}/${photo.filename}`);
+                unlinkSync(`${photo.destination}/${photo.filename}`);
                 throw new Error("File uploaded is not an image");
             }
             fileName = `${photo.filename}.png`;
             const mediaDestination = `../public/profileImages/`
-            fs.renameSync(`${photo.destination}/${photo.filename}`, `${mediaDestination}${fileName}`);
+            renameSync(`${photo.destination}/${photo.filename}`, `${mediaDestination}${fileName}`);
         }
 
         const addPersonalDetail = await Doctor.findByIdAndUpdate(
@@ -176,6 +177,54 @@ export async function addPersonalDetail(req, res) {
             success: false,
             error: error.message,
             message: "Something went wrong!",
+        });
+    }
+}
+
+// Set doctor personal information
+export async function addOtherDoctor(req, res) {
+    try {
+        const userId = req.userdata._id;
+        const file = req.files?.profileImage ? req.files.profileImage[0] : null;
+        
+        const existingUser = await Doctor.findOne({ email: req.body.email }).lean();
+        if(existingUser){
+            throw new Error("A doctor with this email already exists");
+        }
+        console.log("exist data", existingUser);
+        console.log("my data", req.userdata);
+        console.log("my data again", req.body);
+        
+        let fileName;
+        const photo = file;
+        // check if photo is sent alongside other form data
+        if (photo) {
+            //check if file uploaded is an image and delete file from server if it's not an image file
+            if(photo.mimetype.split("/")[0] !== "image"){
+                unlinkSync(`${photo.destination}/${photo.filename}`);
+                throw new Error("File uploaded is not an image");
+            }
+            fileName = `${photo.filename}.png`;
+            const mediaDestination = `../public/profileImages/`
+            renameSync(`${photo.destination}/${photo.filename}`, `${mediaDestination}${fileName}`);
+        }
+
+        const addPersonalDetail = await Doctor.create(
+            { ...req.body, profileImage: fileName, token: null },
+            { new: true }
+        );
+
+        return res.status(200).send({
+            success: true,
+            data: addPersonalDetail,
+            message: "New doctor information added successfully..!",
+        });
+    } catch (error) {
+        console.log("error====>", error);
+        return res.status(500).send({
+            success: false,
+            error: error.message,
+            message: error.message,
         });
     }
 }
@@ -594,7 +643,7 @@ export async function getMode(req, res) {
 export async function updateMode(req, res) {
     try {
         const id = req.params.id;
-        const { name, price } = req.body;
+        const { name, price, currency } = req.body;
 
         const findMode = await Mode.findById({ _id: id }).lean();
 
@@ -607,7 +656,7 @@ export async function updateMode(req, res) {
 
         const updateMode = await Mode.findByIdAndUpdate(
             { _id: id },
-            { $set: { name, price } },
+            { $set: { name, price, currency } },
             { new: true }
         );
 
