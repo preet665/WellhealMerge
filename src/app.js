@@ -16,33 +16,33 @@ dotenv.config();
 console.log("Loaded Environment Variables: ", process.env);
 // import './cron/generic_reminders.js';
 
-// cron.schedule(
-//   '*/15 * * * * *',
-//   async () => {
-//     subscriptionFreeTrialEnd();
-//     subscriptionPlanCancelByUserPlanAutoEnd();
-//     subscriptionAutoEndNonCancel();
-//   },
-//   { scheduled: true }
-// );
+cron.schedule(
+  '*/15 * * * * *',
+  async () => {
+    subscriptionFreeTrialEnd();
+    subscriptionPlanCancelByUserPlanAutoEnd();
+    subscriptionAutoEndNonCancel();
+  },
+  { scheduled: true }
+);
 
-// cron.schedule(
-//   '* * * * *',
-//   async () => {
-//     //autoEndFreeTrial();
-//     scheduleNotificationByCron();
-//   },
-//   { scheduled: true }
-// );
+cron.schedule(
+  '* * * * *',
+  async () => {
+    //autoEndFreeTrial();
+    scheduleNotificationByCron();
+  },
+  { scheduled: true }
+);
 
-// // Run the cron job at midnight (12:00 AM)
-// cron.schedule(
-//   '0 0 * * *',
-//   async () => {
-//     autoEndFreeTrial();
-//   },
-//   { scheduled: true }
-// );
+// Run the cron job at midnight (12:00 AM)
+cron.schedule(
+  '0 0 * * *',
+  async () => {
+    autoEndFreeTrial();
+  },
+  { scheduled: true }
+);
 
 const __dirname = path.resolve();
 const app = express();

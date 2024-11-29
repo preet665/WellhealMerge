@@ -9,9 +9,10 @@ import User from '../models/user.model.js';
 import Appointment from '../models/appointment.model.js';
 import DoctorTokenModel from '../models/doctor_token.model.js';
 import { logger, level } from '../config/logger.js';
-import { unlinkSync, renameSync } from 'fs'
+import { unlinkSync, renameSync, existsSync } from 'fs'
 import mongoose from 'mongoose';
 import Razorpay from 'razorpay';
+import path from 'path';
 
 // Doctor login
 export async function login(req, res) {
@@ -157,9 +158,15 @@ export async function addPersonalDetail(req, res) {
                 unlinkSync(`${photo.destination}/${photo.filename}`);
                 throw new Error("File uploaded is not an image");
             }
-            fileName = `${photo.filename}.png`;
-            const mediaDestination = `../public/profileImages/`
-            renameSync(`${photo.destination}/${photo.filename}`, `${mediaDestination}${fileName}`);
+            fileName = `${photo.filename}`;
+        }
+
+        // delete old profile image from dir
+        const getPersonalDetail = await Doctor.findById(
+            { _id: userId },
+        );
+        if(existsSync(`${path.resolve()}/public/profileImages/${getPersonalDetail.profileImage}`)){
+            unlinkSync(`${path.resolve()}/public/profileImages/${getPersonalDetail.profileImage}`);
         }
 
         const addPersonalDetail = await Doctor.findByIdAndUpdate(
@@ -193,9 +200,6 @@ export async function addOtherDoctor(req, res) {
         if(existingUser){
             throw new Error("A doctor with this email already exists");
         }
-        console.log("exist data", existingUser);
-        console.log("my data", req.userdata);
-        console.log("my data again", req.body);
         
         let fileName;
         const photo = file;
@@ -206,9 +210,7 @@ export async function addOtherDoctor(req, res) {
                 unlinkSync(`${photo.destination}/${photo.filename}`);
                 throw new Error("File uploaded is not an image");
             }
-            fileName = `${photo.filename}.png`;
-            const mediaDestination = `../public/profileImages/`
-            renameSync(`${photo.destination}/${photo.filename}`, `${mediaDestination}${fileName}`);
+            fileName = `${photo.filename}`;
         }
 
         const addPersonalDetail = await Doctor.create(

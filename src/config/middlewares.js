@@ -13,7 +13,7 @@ const MORGAN_DEV_FORMAT = "dev";
 
 export default (app) => {
   app.get("/public/*", (req, res) => {
-    res.sendFile(path.join(__dirname, "src", req.url));
+    res.sendFile(path.join(__dirname, "", req.url));
   });
   app.use(cors());
   app.use(
