@@ -189,50 +189,6 @@ export async function addPersonalDetail(req, res) {
         });
     }
 }
-
-// Set doctor personal information
-export async function addOtherDoctor(req, res) {
-    try {
-        const userId = req.userdata._id;
-        const file = req.files?.profileImage ? req.files.profileImage[0] : null;
-        
-        const existingUser = await Doctor.findOne({ email: req.body.email }).lean();
-        if(existingUser){
-            throw new Error("A doctor with this email already exists");
-        }
-        
-        let fileName;
-        const photo = file;
-        // check if photo is sent alongside other form data
-        if (photo) {
-            //check if file uploaded is an image and delete file from server if it's not an image file
-            if(photo.mimetype.split("/")[0] !== "image"){
-                unlinkSync(`${photo.destination}/${photo.filename}`);
-                throw new Error("File uploaded is not an image");
-            }
-            fileName = `${photo.filename}`;
-        }
-
-        const addPersonalDetail = await Doctor.create(
-            { ...req.body, profileImage: fileName, token: null },
-            { new: true }
-        );
-
-        return res.status(200).send({
-            success: true,
-            data: addPersonalDetail,
-            message: "New doctor information added successfully..!",
-        });
-    } catch (error) {
-        console.log("error====>", error);
-        return res.status(500).send({
-            success: false,
-            error: error.message,
-            message: error.message,
-        });
-    }
-}
-
 // Set doctor banking information
 export async function addBankingDetail(req, res) {
     try {
@@ -961,7 +917,7 @@ export async function getAppointments(req, res) {
             });
         }
 
-        const appointments = await Appointment.aggregate(pipeline);
+        const appointments = await Appointment.aggregate(pipeline).populate('doctorId', '_id name email');
 
         return res.status(200).json({
             success: true,
@@ -1149,5 +1105,187 @@ export async function logout(req, res) {
     } catch (error) {
         console.log("error", error);
         return res.status(500).json({ code: 500, message: error.message });
+    }
+}
+
+
+
+
+
+
+
+// Set doctor personal information
+export async function addDoctor(req, res) {
+    try {
+        const userId = req.userdata._id;
+        const file = req.files?.profileImage ? req.files.profileImage[0] : null;
+        
+        const existingUser = await Doctor.findOne({ email: req.body.email }).lean();
+        if(existingUser){
+            throw new Error("A doctor with this email already exists");
+        }
+        
+        let fileName;
+        const photo = file;
+        // check if photo is sent alongside other form data
+        if (photo) {
+            //check if file uploaded is an image and delete file from server if it's not an image file
+            if(photo.mimetype.split("/")[0] !== "image"){
+                unlinkSync(`${photo.destination}/${photo.filename}`);
+                throw new Error("File uploaded is not an image");
+            }
+            fileName = `${photo.filename}`;
+        }
+
+        const addPersonalDetail = await Doctor.create(
+            { ...req.body, profileImage: fileName, token: null },
+            { new: true }
+        );
+
+        return res.status(200).send({
+            success: true,
+            data: addPersonalDetail,
+            message: "New doctor information added successfully..!",
+        });
+    } catch (error) {
+        console.log("error====>", error);
+        return res.status(500).send({
+            success: false,
+            error: error.message,
+            message: error.message,
+        });
+    }
+}
+
+
+// Set doctor personal information
+export async function updateDoctor(req, res) {
+    try {
+        const userId = req.userdata._id;
+        const file = req.files?.profileImage ? req.files.profileImage[0] : null;
+
+        const { doctorId } = req.body;
+        if(!doctorId) throw new Error("Error: Doctor Id missing")
+        
+        const existingUser = await Doctor.findOne({ _id: doctorId }).lean();
+        if(!existingUser){
+            throw new Error("A doctor with this id does not exist");
+        }
+        
+        let fileName;
+        const photo = file;
+        // check if photo is sent alongside other form data
+        if (photo) {
+            //check if file uploaded is an image and delete file from server if it's not an image file
+            if(photo.mimetype.split("/")[0] !== "image"){
+                unlinkSync(`${photo.destination}/${photo.filename}`);
+                throw new Error("File uploaded is not an image");
+            }
+            fileName = `${photo.filename}`;
+        }
+
+        const addPersonalDetail = await Doctor.findByIdAndUpdate(
+            { _id: doctorId },
+            { ...req.body, profileImage: fileName },
+            { new: true }
+        );
+        console.log("mmmmmmmmmmmmmmmmmmmmmmmmmmm", addPersonalDetail)
+
+        return res.status(200).send({
+            success: true,
+            data: addPersonalDetail,
+            message: "Doctor information updated successfully..!",
+        });
+    } catch (error) {
+        console.log("error====>", error);
+        return res.status(500).send({
+            success: false,
+            error: error.message,
+            message: error.message,
+        });
+    }
+}
+
+
+// Set doctor personal information
+export async function getDoctors(req, res) {
+    try {
+        const userId = req.userdata._id;
+        const file = req.files?.profileImage ? req.files.profileImage[0] : null;
+        
+
+        const doctors = await Doctor.find();
+
+        return res.status(200).send({
+            success: true,
+            data: doctors,
+            message: "Doctors list retrieved successfully..!",
+        });
+    } catch (error) {
+        console.log("error====>", error);
+        return res.status(500).send({
+            success: false,
+            error: error.message,
+            message: error.message,
+        });
+    }
+}
+
+
+// Set doctor personal information
+export async function getDoctor(req, res) {
+    try {
+        const userId = req.userdata._id;
+
+        const {doctorId} = req.params;
+
+        if (!doctorId) throw new Error('No doctor selected.');
+
+        const doctor = await Doctor.findOne({
+            _id: doctorId
+        });
+        if (!doctor) throw new Error('Doctor not found.');
+
+        return res.status(200).send({
+            success: true,
+            data: doctor,
+            message: "Doctor information retrieved successfully..!",
+        });
+    } catch (error) {
+        console.log("error====>", error);
+        return res.status(500).send({
+            success: false,
+            error: error.message,
+            message: error.message,
+        });
+    }
+}
+
+
+// Set doctor personal information
+export async function deleteDoctor(req, res) {
+    try {
+        const userId = req.userdata._id;
+
+        const {doctorId} = req.body;
+        
+        if (!doctorId) throw new Error('No doctor selected.');
+
+        const doctor = await Doctor.deleteOne({
+            _id: doctorId
+        });
+        if (!doctor) throw new Error('Doctor not found.');
+
+        return res.status(200).send({
+            success: true,
+            message: "Doctor information deleted successfully..!",
+        });
+    } catch (error) {
+        console.log("error====>", error);
+        return res.status(500).send({
+            success: false,
+            error: error.message,
+            message: error.message,
+        });
     }
 }
