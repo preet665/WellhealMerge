@@ -455,8 +455,8 @@ export async function getTransactionHistory(req, res) {
 // Set doctor availability information
 export async function addAvailabilityDetail(req, res) {
     try {
-        const userId = req.userdata._id;
-        const { date, timeSlots, mode, isAddMonthlySlot } = req.body;
+        const { doctorId, date, timeSlots, mode, isAddMonthlySlot } = req.body;
+        const userId =  doctorId || req.userdata._id;
 
         const findUser = await Doctor.findById(userId).lean();
         if (!findUser) {
@@ -493,7 +493,6 @@ export async function addAvailabilityDetail(req, res) {
                         validSlots.push(newSlot);
                     }
                 }
-
                 if (validSlots.length > 0) {
                     await DoctorAvailability.findOneAndUpdate(
                         { date: currentDate, doctorId: userId },
@@ -579,10 +578,10 @@ export async function aboutDoctorDetail(req, res) {
 // Get Filter wise slots
 export async function getFilterSlots(req, res) {
     try {
-        const userId = req.userdata._id;
         const role = req.userdata.role;
         const doctorId = req.body.doctorId;
         const date = req.body.date;
+        const userId =  doctorId || req.userdata._id;
         let findSlots;
 
         const findUser = role === 'doctor' ? await Doctor.findById({ _id: userId }).lean() : await User.findById({ _id: userId }).lean();
@@ -642,7 +641,8 @@ export async function getFilterSlots(req, res) {
 // Get doctor slots
 export async function getDoctorSlots(req, res) {
     try {
-        const userId = req.userdata._id;
+        const doctorId = req.body.doctorId;
+        const userId =  doctorId || req.userdata._id;
 
         const findUser = await Doctor.findById({ _id: userId }).lean();
 
@@ -682,7 +682,8 @@ export async function getDoctorSlots(req, res) {
 // Delete slots
 export async function deleteSlots(req, res) {
     try {
-        const userId = req.userdata._id;
+        const doctorId = req.body.doctorId;
+        const userId =  doctorId || req.userdata._id;
         const slotId = req.params.id;
         const availabilityId = req.body.availabilityId;
 
@@ -730,7 +731,8 @@ export async function deleteSlots(req, res) {
 // Get all slots
 export async function getAllSlots(req, res) {
     try {
-        const userId = req.userdata._id;
+        const doctorId = req.body.doctorId;
+        const userId =  doctorId || req.userdata._id;
 
         const findUser = await Doctor.findById({ _id: userId }).lean();
 

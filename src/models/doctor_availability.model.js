@@ -5,14 +5,12 @@ const doctorAvailability = new mongoose.Schema(
     {
         doctorId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "Dcotor",
+            ref: "Doctor",
             require: true
         },
         date: {
             type: String,
             require: true,
-            unique: true,
-            index: true
         },
         mode: {
             type: [{
