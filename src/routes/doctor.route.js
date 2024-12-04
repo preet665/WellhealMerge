@@ -30,7 +30,7 @@ import {
 } from '../controllers/doctor.controller.js';
 
 // Import WellHeal's middlewares
-import { verifyMiddleware, authMiddleware,doctorAuthMiddleware } from "../shared/middleweres/auth.middlewere.js";
+import { verifyMiddleware, authMiddleware,doctorAuthMiddleware, leadDoctorMiddleware } from "../shared/middleweres/auth.middlewere.js";
 
 // Import multer upload middleware
 import handleUpload from "../shared/middleweres/multerUpload.js";
@@ -74,11 +74,11 @@ router.post("/logout", doctorAuthMiddleware, logout);
 
 
 // Other doctor routes
-router.post("/add", doctorAuthMiddleware, handleUpload, addDoctor);
-router.post("/update", doctorAuthMiddleware, handleUpload, updateDoctor);
-router.get("/get", doctorAuthMiddleware, getDoctors);
-router.get("/get/:doctorId", doctorAuthMiddleware, getDoctor);
-router.post("/delete", doctorAuthMiddleware, deleteDoctor);
+router.post("/add", doctorAuthMiddleware, leadDoctorMiddleware, handleUpload, addDoctor);
+router.post("/update", doctorAuthMiddleware, leadDoctorMiddleware, handleUpload, updateDoctor);
+router.get("/get", doctorAuthMiddleware, leadDoctorMiddleware, getDoctors);
+router.get("/get/:doctorId", doctorAuthMiddleware, leadDoctorMiddleware, getDoctor);
+router.post("/delete", doctorAuthMiddleware, leadDoctorMiddleware, deleteDoctor);
 
 // Export the router
 export default router;

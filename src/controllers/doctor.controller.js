@@ -895,7 +895,20 @@ export async function getAppointments(req, res) {
                     as: 'modeId'
                 }
             },
-            { $unwind: '$modeId' },
+            { $unwind: { path: '$modeId', preserveNullAndEmptyArrays: true } },
+            
+            // {
+            //     $lookup: {
+            //         from: 'doctoravailabilities', // Ensure collection name matches
+            //         localField: 'timeSlot',
+            //         foreignField: '_id',
+            //         pipeline: [
+            //             { $project: { _id: 1, time: 1, isBooked: 1 } }
+            //         ],
+            //         as: 'timeSlotDetails'
+            //     }
+            // },
+            // { $unwind: { path: '$timeSlotDetails', preserveNullAndEmptyArrays: true } },
             {
                 $lookup: {
                     from: 'doctoravailabilities',
@@ -908,7 +921,19 @@ export async function getAppointments(req, res) {
                     as: 'timeSlot'
                 }
             },
-            { $unwind: '$timeSlot' }
+            { $unwind: { path: '$timeSlot', preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: 'doctors',
+                    localField: 'doctorId',
+                    foreignField: '_id',
+                    pipeline: [
+                        { $project: { _id: 1, firstName: 1, lastName: 1, email: 1 } }
+                    ],
+                    as: 'doctor'
+                }
+            },
+            { $unwind: { path: '$doctor', preserveNullAndEmptyArrays: true } }
         ];
 
         if (searchStatus) {
@@ -917,7 +942,7 @@ export async function getAppointments(req, res) {
             });
         }
 
-        const appointments = await Appointment.aggregate(pipeline).populate('doctorId', '_id name email');
+        const appointments = await Appointment.aggregate(pipeline);
 
         return res.status(200).json({
             success: true,

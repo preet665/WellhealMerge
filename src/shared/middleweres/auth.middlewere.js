@@ -177,6 +177,16 @@ export const authMiddleware = async (req, res, next) => {
     return unauthorizedError(res);
 };
 
+export const leadDoctorMiddleware = async (req, res, next) => {
+    console.log("leadDoctorMiddleware invoked");
+
+    if (req[CURRENT_USER] != constants.LEAD_DOCTOR_EMAIL) {
+        return unauthorizedError(res, 'Unauthorized user for this route');
+    }
+    console.log("Verification passed, proceeding to next middleware");
+    next();
+};
+
 export const verifyMiddleware = async (req, res, next) => {
     console.log("verifyMiddleware invoked");
 
