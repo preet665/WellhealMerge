@@ -43,3 +43,9 @@ export const UPLOAD_PATH = {
   Quote: process.env.Aws_Upload_Path_For_Quote,
   SubscribeCard: process.env.Aws_Upload_Path_For_SubscribeCard
 }
+
+export const AWS_CONFIG = {
+  accessKeyId: process.env.Aws_S3_Access_key_id,
+  secretAccessKey: process.env.Aws_S3_Secret_Access_key,
+  region: process.env.Aws_Region,
+}

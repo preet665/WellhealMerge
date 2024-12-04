@@ -9,10 +9,19 @@ import User from '../models/user.model.js';
 import Appointment from '../models/appointment.model.js';
 import DoctorTokenModel from '../models/doctor_token.model.js';
 import { logger, level } from '../config/logger.js';
-import { unlinkSync, renameSync, existsSync } from 'fs'
+import { unlinkSync, renameSync, existsSync, readFileSync } from 'fs'
 import mongoose from 'mongoose';
 import Razorpay from 'razorpay';
 import path from 'path';
+import AWS from 'aws-sdk'
+import { AWS_CONFIG } from '../shared/constant/application.const.js';
+
+// Configure AWS SDK
+AWS.config.update({
+    accessKeyId: AWS_CONFIG.accessKeyId,
+    secretAccessKey: AWS_CONFIG.secretAccessKey,
+    region: AWS_CONFIG.region,
+  });
 
 // Doctor login
 export async function login(req, res) {
@@ -149,16 +158,38 @@ export async function addPersonalDetail(req, res) {
             });
         }
         
+        
         let fileName;
-        const photo = file;
-        // check if photo is sent alongside other form data
-        if (photo) {
+        let fullFileName;
+        // check if file is sent alongside other form data
+        if (file) {
             //check if file uploaded is an image and delete file from server if it's not an image file
-            if(photo.mimetype.split("/")[0] !== "image"){
-                unlinkSync(`${photo.destination}/${photo.filename}`);
+            if(file.mimetype.split("/")[0] !== "image"){
+                unlinkSync(`${file.destination}/${file.filename}`);
                 throw new Error("File uploaded is not an image");
             }
-            fileName = `${photo.filename}`;
+            const fileContent = readFileSync(`${file.destination}/${file.filename}`);
+            fileName = `${userId}-${Date.now()}`;
+
+            const s3 = new AWS.S3();
+            const s3Params = {
+                Bucket: process.env.Aws_Bucket_Name,
+                Key: fileName,
+                Body: fileContent,
+                ContentType: file.mimetype,
+            };
+
+            const s3Response = await s3.upload(s3Params).promise();
+            // let cloudfileName = s3Response.Location;
+            fullFileName = `${process.env.CloudFrontURL}/${fileName}`;
+            console.log('File uploaded to S3:', s3Response.Location);
+            console.log('File link at:', fullFileName);
+            
+            try {
+                unlinkSync(`${file.destination}/${file.filename}.png`);
+            } catch (err) {
+                console.error('Error deleting file:', err.message);
+            }
         }
 
         // delete old profile image from dir
@@ -171,7 +202,7 @@ export async function addPersonalDetail(req, res) {
 
         const addPersonalDetail = await Doctor.findByIdAndUpdate(
             { _id: userId },
-            { ...req.body, profileImage: fileName },
+            { ...req.body, profileImage: fullFileName },
             { new: true }
         ).lean();
 
@@ -1144,6 +1175,10 @@ export async function addDoctor(req, res) {
     try {
         const userId = req.userdata._id;
         const file = req.files?.profileImage ? req.files.profileImage[0] : null;
+
+        if(!req.body.email) {
+            throw new Error("Email address is missing.");
+        }
         
         const existingUser = await Doctor.findOne({ email: req.body.email }).lean();
         if(existingUser){
@@ -1151,20 +1186,40 @@ export async function addDoctor(req, res) {
         }
         
         let fileName;
-        const photo = file;
-        // check if photo is sent alongside other form data
-        if (photo) {
+        let fullFileName;
+        // check if file is sent alongside other form data
+        if (file) {
             //check if file uploaded is an image and delete file from server if it's not an image file
-            if(photo.mimetype.split("/")[0] !== "image"){
-                unlinkSync(`${photo.destination}/${photo.filename}`);
+            if(file.mimetype.split("/")[0] !== "image"){
+                unlinkSync(`${file.destination}/${file.filename}`);
                 throw new Error("File uploaded is not an image");
             }
-            fileName = `${photo.filename}`;
-        }
+            const fileContent = readFileSync(`${file.destination}/${file.filename}`);
+            fileName = `${userId}-${Date.now()}`;
 
+            const s3 = new AWS.S3();
+            const s3Params = {
+                Bucket: process.env.Aws_Bucket_Name,
+                Key: fileName,
+                Body: fileContent,
+                ContentType: file.mimetype,
+            };
+
+            const s3Response = await s3.upload(s3Params).promise();
+            // let cloudfileName = s3Response.Location;
+            fullFileName = `${process.env.CloudFrontURL}/${fileName}`;
+            console.log('File uploaded to S3:', s3Response.Location);
+            console.log('File link at:', fullFileName);
+            
+            try {
+                unlinkSync(`${file.destination}/${file.filename}.png`);
+            } catch (err) {
+                console.error('Error deleting file:', err.message);
+            }
+        }
+        
         const addPersonalDetail = await Doctor.create(
-            { ...req.body, profileImage: fileName, token: null },
-            { new: true }
+            { ...req.body, profileImage: fullFileName, email: req.body.email }
         );
 
         return res.status(200).send({
@@ -1197,24 +1252,45 @@ export async function updateDoctor(req, res) {
             throw new Error("A doctor with this id does not exist");
         }
         
+        
         let fileName;
-        const photo = file;
-        // check if photo is sent alongside other form data
-        if (photo) {
+        let fullFileName;
+        // check if file is sent alongside other form data
+        if (file) {
             //check if file uploaded is an image and delete file from server if it's not an image file
-            if(photo.mimetype.split("/")[0] !== "image"){
-                unlinkSync(`${photo.destination}/${photo.filename}`);
+            if(file.mimetype.split("/")[0] !== "image"){
+                unlinkSync(`${file.destination}/${file.filename}`);
                 throw new Error("File uploaded is not an image");
             }
-            fileName = `${photo.filename}`;
+            const fileContent = readFileSync(`${file.destination}/${file.filename}`);
+            fileName = `${userId}-${Date.now()}`;
+
+            const s3 = new AWS.S3();
+            const s3Params = {
+                Bucket: process.env.Aws_Bucket_Name,
+                Key: fileName,
+                Body: fileContent,
+                ContentType: file.mimetype,
+            };
+
+            const s3Response = await s3.upload(s3Params).promise();
+            // let cloudfileName = s3Response.Location;
+            fullFileName = `${process.env.CloudFrontURL}/${fileName}`;
+            console.log('File uploaded to S3:', s3Response.Location);
+            console.log('File link at:', fullFileName);
+            
+            try {
+                unlinkSync(`${file.destination}/${file.filename}.png`);
+            } catch (err) {
+                console.error('Error deleting file:', err.message);
+            }
         }
 
         const addPersonalDetail = await Doctor.findByIdAndUpdate(
             { _id: doctorId },
-            { ...req.body, profileImage: fileName },
+            { ...req.body, profileImage: fullFileName },
             { new: true }
         );
-        console.log("mmmmmmmmmmmmmmmmmmmmmmmmmmm", addPersonalDetail)
 
         return res.status(200).send({
             success: true,
@@ -1236,7 +1312,6 @@ export async function updateDoctor(req, res) {
 export async function getDoctors(req, res) {
     try {
         const userId = req.userdata._id;
-        const file = req.files?.profileImage ? req.files.profileImage[0] : null;
         
 
         const doctors = await Doctor.find();
