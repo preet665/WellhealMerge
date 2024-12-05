@@ -55,7 +55,7 @@ router.get("/getAllSlots", doctorAuthMiddleware, getAllSlots);
 router.get("/getPatients", doctorAuthMiddleware, getPatients);
 
 // Appointments
-router.get("/getAppointments", doctorAuthMiddleware, getAppointments);
+router.get("/getAppointments/:doctorId?", doctorAuthMiddleware, getAppointments);
 router.get("/getSingleAppointment/:id", doctorAuthMiddleware, getSingleAppointment);
 router.get("/appointmentCount", doctorAuthMiddleware, appointmentCount);
 router.get("/getMonthYearWiseAppointment", doctorAuthMiddleware, getMonthYearWiseAppointment);

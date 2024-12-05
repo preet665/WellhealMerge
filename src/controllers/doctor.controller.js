@@ -906,6 +906,8 @@ export async function getAppointments(req, res) {
     try {
         const userId = req.userdata._id;
         const searchStatus = req.query.searchStatus;
+        const { doctorId } = req.params
+        // const doctorId = "6744845bb6c6c3f11af10990";
 
         const checkExistUser = await Doctor.findById({ _id: userId }).lean();
 
@@ -958,15 +960,21 @@ export async function getAppointments(req, res) {
             {
                 $lookup: {
                     from: 'doctors',
-                    localField: 'doctorId',
-                    foreignField: '_id',
+                    let: { doctorId: '$doctorId' },
                     pipeline: [
+                        { 
+                            $match: { 
+                                ...(doctorId 
+                                    ? { $expr: { $eq: ['$_id', mongoose.Types.ObjectId(doctorId)] } } 
+                                    : {})
+                            } 
+                        },
                         { $project: { _id: 1, firstName: 1, lastName: 1, email: 1 } }
                     ],
                     as: 'doctor'
                 }
             },
-            { $unwind: { path: '$doctor', preserveNullAndEmptyArrays: true } }
+            { $unwind: { path: '$doctor', preserveNullAndEmptyArrays: true } }            
         ];
 
         if (searchStatus) {
