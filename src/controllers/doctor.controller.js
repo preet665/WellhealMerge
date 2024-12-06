@@ -63,8 +63,7 @@ export async function login(req, res) {
         logger.log(`Doctor found: ${doctor._id}`);
 
         // Compare password
-        const isPasswordValid = bcrypt.compare(password, doctor.password);
-
+        const isPasswordValid = bcrypt.compareSync(password, doctor.password);
         if (!isPasswordValid) {
             logger.log(`Invalid password for doctor ID: ${doctor._id}`);
             return res.status(401).json({ success: false, message: 'Invalid email or password' });
@@ -127,7 +126,6 @@ export async function getLoggedInUser(req, res) {
                 success: false,
             });
         }
-
         return res.status(200).send({
             success: true,
             data: findUser,
@@ -1189,6 +1187,9 @@ export async function addDoctor(req, res) {
         if(!req.body.email) {
             throw new Error("Email address is missing.");
         }
+        if(!req.body.password || req.body.password.length < 1) {
+            throw new Error("Password is missing.");
+        }
         
         const existingUser = await Doctor.findOne({ email: req.body.email }).lean();
         if(existingUser){
@@ -1229,7 +1230,7 @@ export async function addDoctor(req, res) {
         }
         
         const addPersonalDetail = await Doctor.create(
-            { ...req.body, profileImage: fullFileName, email: req.body.email }
+            { ...req.body, profileImage: fullFileName, email: req.body.email, password: bcrypt.hashSync(req.body.password), role: 'doctor' }
         );
 
         return res.status(200).send({
@@ -1254,7 +1255,7 @@ export async function updateDoctor(req, res) {
         const userId = req.userdata._id;
         const file = req.files?.profileImage ? req.files.profileImage[0] : null;
 
-        const { doctorId } = req.body;
+        const { doctorId, password } = req.body;
         if(!doctorId) throw new Error("Error: Doctor Id missing")
         
         const existingUser = await Doctor.findOne({ _id: doctorId }).lean();
@@ -1298,7 +1299,7 @@ export async function updateDoctor(req, res) {
 
         const addPersonalDetail = await Doctor.findByIdAndUpdate(
             { _id: doctorId },
-            { ...req.body, profileImage: fullFileName },
+            { ...req.body, profileImage: fullFileName, ...(password && password.length > 0 && { password: bcrypt.hashSync(password)}) },
             { new: true }
         );
 
