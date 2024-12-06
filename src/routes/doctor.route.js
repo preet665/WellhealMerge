@@ -51,7 +51,7 @@ router.get("/aboutDoctorDetail", doctorAuthMiddleware, aboutDoctorDetail);
 router.post("/getFilterSlots", doctorAuthMiddleware, getFilterSlots);
 router.get("/getDoctorSlots", doctorAuthMiddleware, getDoctorSlots);
 router.put("/deleteSlot/:id", doctorAuthMiddleware, deleteSlots);
-router.get("/getAllSlots", doctorAuthMiddleware, getAllSlots);
+router.get("/getAllSlots/:doctorId?", doctorAuthMiddleware, getAllSlots);
 router.get("/getPatients", doctorAuthMiddleware, getPatients);
 
 // Appointments

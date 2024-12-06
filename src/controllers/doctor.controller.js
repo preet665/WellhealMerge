@@ -731,7 +731,7 @@ export async function deleteSlots(req, res) {
 // Get all slots
 export async function getAllSlots(req, res) {
     try {
-        const doctorId = req.body.doctorId;
+        const { doctorId } = req.params
         const userId =  doctorId || req.userdata._id;
 
         const findUser = await Doctor.findById({ _id: userId }).lean();

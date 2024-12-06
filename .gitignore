@@ -8,3 +8,4 @@ doc.txt
 package-lock.json
 Wellheal
 .environment/
+public/
