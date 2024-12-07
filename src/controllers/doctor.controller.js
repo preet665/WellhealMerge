@@ -904,8 +904,7 @@ export async function getAppointments(req, res) {
     try {
         const userId = req.userdata._id;
         const searchStatus = req.query.searchStatus;
-        const { doctorId } = req.params
-        // const doctorId = "6744845bb6c6c3f11af10990";
+        const doctorId = req.params.doctorId || userId;
 
         const checkExistUser = await Doctor.findById({ _id: userId }).lean();
 
@@ -1090,14 +1089,14 @@ export async function appointmentCount(req, res) {
             });
         }
 
-        const completedAppointment = await Appointment.find({ doctorId: userId, status: 'Completed' }).lean();
-        const upComingAppointment = await Appointment.find({ doctorId: userId, status: 'Upcoming' }).lean();
-        const cancelAppointment = await Appointment.find({ doctorId: userId, status: 'Cancel' }).lean();
+        const completedAppointment = await Appointment.countDocuments({ doctorId: userId, status: 'Completed' });
+        const upComingAppointment = await Appointment.countDocuments({ doctorId: userId, status: 'Upcoming' });
+        const cancelAppointment = await Appointment.countDocuments({ doctorId: userId, status: 'Cancel' });
 
         let data = {
-            completedAppointment: completedAppointment?.length,
-            upComingAppointment: upComingAppointment?.length,
-            cancelAppointment: cancelAppointment?.length,
+            completedAppointment,
+            upComingAppointment,
+            cancelAppointment
         }
 
         return res.status(200).json({
