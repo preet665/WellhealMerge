@@ -971,7 +971,7 @@ export async function getAppointments(req, res) {
                     as: 'doctor'
                 }
             },
-            { $unwind: { path: '$doctor', preserveNullAndEmptyArrays: true } }            
+            { $unwind: { path: '$doctor', preserveNullAndEmptyArrays: true } }
         ];
 
         if (searchStatus) {
