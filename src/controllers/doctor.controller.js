@@ -1089,9 +1089,9 @@ export async function appointmentCount(req, res) {
             });
         }
 
-        const completedAppointment = await Appointment.countDocuments({ doctorId: userId, status: 'Completed' });
-        const upComingAppointment = await Appointment.countDocuments({ doctorId: userId, status: 'Upcoming' });
-        const cancelAppointment = await Appointment.countDocuments({ doctorId: userId, status: 'Cancel' });
+        const completedAppointment = await Appointment.countDocuments({ doctorId: userId, status: { $regex: '^Completed$', $options: 'i' } });
+        const upComingAppointment = await Appointment.countDocuments({ doctorId: userId, status: { $regex: '^Upcoming$', $options: 'i' } });
+        const cancelAppointment = await Appointment.countDocuments({ doctorId: userId, status: { $regex: '^Cancel(led)?$', $options: 'i' } });
 
         let data = {
             completedAppointment,
