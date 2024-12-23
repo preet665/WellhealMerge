@@ -146,7 +146,6 @@ export async function addPersonalDetail(req, res) {
     try {
         const userId = req.userdata._id;
         const file = req.files?.profileImage ? req.files.profileImage[0] : null;
-        // const fileName = file ? file.filename : null; // REMOVE THIS. NO LONGER NEEDED
         const findUser = await Doctor.findById({ _id: userId }).lean();
 
         if (!findUser) {
@@ -1255,7 +1254,7 @@ export async function updateDoctor(req, res) {
         const file = req.files?.profileImage ? req.files.profileImage[0] : null;
 
         const { doctorId, password } = req.body;
-        if(!doctorId) throw new Error("Error: Doctor Id missing")
+        if(!doctorId) throw new Error("Error: Doctor Id missing");
         
         const existingUser = await Doctor.findOne({ _id: doctorId }).lean();
         if(!existingUser){

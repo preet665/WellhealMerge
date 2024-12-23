@@ -16,6 +16,7 @@ import subscribePaymentCardRoutes from "./subscribePaymentCard.route.js"
 import { verifyMiddleware } from "../shared/middleweres/auth.middlewere.js";
 import DoctorRoutes from "./doctor.route.js";
 import GiftcodeRoutes from "./giftcode.route.js";
+import ReportRoutes from "./report.route.js";
 
 const routes = new Router();
 const Path = {
@@ -34,7 +35,8 @@ const Path = {
   subscribeCard: "/subscribeCard",
   subscribePaymentCard: "/subscribePaymentCard",
   doctor: "/doctor",
-  giftcode: "/giftcode"
+  giftcode: "/giftcode",
+  report: "/report"
 };
 
 routes.use(Path.admin, AdminRoutes);
@@ -56,5 +58,6 @@ routes.use(Path.subscribeCard, subscribeCardRoutes);
 routes.use(Path.subscribePaymentCard, subscribePaymentCardRoutes);
 routes.use(Path.doctor, DoctorRoutes);
 routes.use(Path.giftcode, GiftcodeRoutes);
+routes.use(Path.report, ReportRoutes);
 
 export default routes;

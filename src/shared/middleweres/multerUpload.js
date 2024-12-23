@@ -40,7 +40,7 @@ const upload = multer({
 ]);
 
 // Combined middleware function
-const handleUpload = (req, res, next) => {
+export const handleUpload = (req, res, next) => {
   upload(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       return res.status(500).json(err);
@@ -52,4 +52,12 @@ const handleUpload = (req, res, next) => {
   });
 };
 
-export default handleUpload;
+export const uploadReportAttachment = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    cb(null, true);
+  },
+}).fields([
+  { name: "attachments", maxCount: 1 },
+]);
+

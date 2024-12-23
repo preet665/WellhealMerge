@@ -33,7 +33,7 @@ import {
 import { verifyMiddleware, authMiddleware,doctorAuthMiddleware, leadDoctorMiddleware } from "../shared/middleweres/auth.middlewere.js";
 
 // Import multer upload middleware
-import handleUpload from "../shared/middleweres/multerUpload.js";
+import {handleUpload} from "../shared/middleweres/multerUpload.js";
 
 const router = express.Router();
 
